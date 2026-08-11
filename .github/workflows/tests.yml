@@ -26,6 +26,14 @@ jobs:
         run: mvn test -Dtest="AuthSmokeTest,AuthNegativeTest,AuthSecurityTest,AuthSessionTest,AuthLogoutTest,AuthUiTest"
         continue-on-error: true
 
+      # 1a. Краткая сводка по тестам прямо в Summary прогона GitHub Actions
+      - name: Publish Test Summary
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: '**/target/surefire-reports/TEST-*.xml'
+          check_name: 'JUnit Test Report'
+
       # 2. Скачивание истории прошлых прогонов из ветки gh-pages
       - name: Checkout gh-pages
         uses: actions/checkout@v4
