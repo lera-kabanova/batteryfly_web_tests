@@ -19,4 +19,4 @@ jobs:
           cache: maven
 
       - name: Run Auth tests
-        run: mvn test -Dtest="org.example.auth.*"
+        run: mvn test -Dtest="AuthSmokeTest,AuthNegativeTest,AuthSecurityTest,AuthSessionTest,AuthLogoutTest,AuthUiTest"
