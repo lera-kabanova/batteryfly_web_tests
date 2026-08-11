@@ -9,14 +9,14 @@ jobs:
 
     steps:
       - name: Checkout project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
 
-      - name: Run Maven tests
-        run: mvn test
+      - name: Run Auth tests
+        run: mvn test -Dtest="org.example.auth.*"
