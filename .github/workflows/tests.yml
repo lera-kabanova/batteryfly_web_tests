@@ -3,6 +3,9 @@ name: Selenium Tests
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -18,15 +21,30 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Setup Chrome
-        uses: browser-actions/setup-chrome@v1
-
       - name: Run Auth tests
         run: mvn test -Dtest="AuthSmokeTest,AuthNegativeTest,AuthSecurityTest,AuthSessionTest,AuthLogoutTest,AuthUiTest"
+        continue-on-error: true
 
-      - name: Upload Test Report
+      - name: Get Allure history
+        uses: actions/checkout@v4
         if: always()
-        uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
-          name: surefire-reports
-          path: target/surefire-reports/
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Generate Allure Report
+        uses: simple-elf/allure-report-action@v1.7
+        if: always()
+        with:
+          allure_results: target/allure-results
+          allure_history: allure-history
+          keep_reports: 20
+
+      - name: Deploy Allure Report to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        if: always()
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: allure-history
