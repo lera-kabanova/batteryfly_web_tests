@@ -32,20 +32,18 @@ public abstract class AuthTestBase {
     void setUpAuthSession() {
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--headless=new");
-        options.addArguments("--window-size=1920,1080"); // Запрещаем переключение в мобильную верстку
+        options.addArguments("--window-size=1920,1080");
         options.addArguments("--remote-allow-origins=*");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-gpu");
         options.addArguments("--incognito");
 
-        // 1. Принудительно устанавливаем русский язык в headless режиме
         options.addArguments("--lang=ru-RU");
         Map<String, Object> prefs = new HashMap<>();
         prefs.put("intl.accept_languages", "ru-RU,ru");
         options.setExperimentalOption("prefs", prefs);
 
-        // 2. Обходим базовые блокировки по User-Agent в CI
         options.addArguments("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         driver = new ChromeDriver(options);
