@@ -30,11 +30,12 @@ public abstract class AuthTestBase {
     @BeforeEach
     void setUpAuthSession() {
         ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new");
         options.addArguments("--remote-allow-origins=*");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--incognito");
-        options.addArguments("--headless=new");
+
 
         driver = new ChromeDriver(options);
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
