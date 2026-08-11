@@ -21,14 +21,12 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      # 1. Запуск тестов модуля Auth
       - name: Run Auth tests
         run: mvn test -Dtest="AuthSmokeTest,AuthNegativeTest,AuthSecurityTest,AuthSessionTest,AuthLogoutTest,AuthUiTest"
         continue-on-error: true
 
-      - name: Check Allure Results
-        if: always()
-        run: ls -la target/allure-results
-
+      # 2. Скачивание истории прошлых прогонов из ветки gh-pages
       - name: Checkout gh-pages
         uses: actions/checkout@v4
         if: always()
@@ -37,6 +35,18 @@ jobs:
           ref: gh-pages
           path: gh-pages
 
+      # 3. Собираем json-файлы из auth/target/allure-results в корневую папку target/allure-results
+      - name: Collect Allure Results from Submodules
+        if: always()
+        run: |
+          mkdir -p target/allure-results
+          # Ищем все файлы результатов из всех подмодулей (auth, etc.) и копируем в корень
+          find . -type f -path "*/target/allure-results/*" -exec cp {} target/allure-results/ \; || true
+          
+          echo "=== Собранные файлы результатов ==="
+          ls -la target/allure-results
+
+      # 4. Установка Allure CLI
       - name: Install Allure CLI
         if: always()
         run: |
@@ -45,6 +55,7 @@ jobs:
           sudo mv allure-2.29.0 /opt/allure
           sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure || true
 
+      # 5. Копируем историю прошлых отчетов (чтобы строились графики)
       - name: Copy Allure history
         if: always()
         run: |
@@ -53,15 +64,18 @@ jobs:
             cp -r gh-pages/history/* target/allure-results/history/ || true
           fi
 
+      # 6. Генерация Allure HTML-отчета
       - name: Generate Allure Report
         if: always()
         run: allure generate target/allure-results --clean -o allure-report
 
+      # 7. Сохранение истории для следующих запусков
       - name: Preserve Allure history
         if: always()
         run: |
           cp -r allure-report/history gh-pages/history || true
 
+      # 8. Публикация отчета на GitHub Pages
       - name: Deploy Allure Report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         if: always()
