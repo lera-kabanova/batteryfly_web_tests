@@ -21,10 +21,12 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      # 1. Запуск тестов через Maven с явным указанием фазы test
       - name: Run Auth tests
         run: mvn test -Dtest="AuthSmokeTest,AuthNegativeTest,AuthSecurityTest,AuthSessionTest,AuthLogoutTest,AuthUiTest"
         continue-on-error: true
 
+      # 2. Скачиваем историю прошлых отчетов из ветки gh-pages
       - name: Checkout gh-pages
         uses: actions/checkout@v4
         if: always()
@@ -33,14 +35,16 @@ jobs:
           ref: gh-pages
           path: gh-pages
 
+      # 3. Установка Allure CLI
       - name: Install Allure CLI
         if: always()
         run: |
           wget https://github.com/allure-framework/allure2/releases/download/2.29.0/allure-2.29.0.tgz
           tar -zxvf allure-2.29.0.tgz
           sudo mv allure-2.29.0 /opt/allure
-          sudo ln -s /opt/allure/bin/allure /usr/usr/bin/allure || sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure
+          sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure || true
 
+      # 4. Перенос истории прошлых прогонов
       - name: Copy Allure history
         if: always()
         run: |
@@ -49,15 +53,18 @@ jobs:
             cp -r gh-pages/history/* target/allure-results/history/ || true
           fi
 
+      # 5. Генерация Allure Report
       - name: Generate Allure Report
         if: always()
         run: allure generate target/allure-results --clean -o allure-report
 
+      # 6. Сохранение истории для следующих прогонов
       - name: Preserve Allure history
         if: always()
         run: |
           cp -r allure-report/history gh-pages/history || true
 
+      # 7. Публикация отчета на GitHub Pages
       - name: Deploy Allure Report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         if: always()
