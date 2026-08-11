@@ -34,8 +34,9 @@ public abstract class AuthTestBase {
         options.addArguments("--remote-allow-origins=*");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
+        options.addArguments("--window-size=1920,1080"); // Обязательно для headless, иначе размер окна минимальный
         options.addArguments("--incognito");
-
 
         driver = new ChromeDriver(options);
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
