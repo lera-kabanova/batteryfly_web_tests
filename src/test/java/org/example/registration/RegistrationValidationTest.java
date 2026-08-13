@@ -5,14 +5,10 @@ import org.example.registration.pages.RegistrationPage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * Валидация полей регистрации (без финального сабмита с новым email — новый аккаунт не создаётся).
- * Источник: qa-discovery/test-modules.md, модуль 2.
- */
 class RegistrationValidationTest extends RegistrationTestBase {
 
     @Test
-    @DisplayName("REG-VAL-01: невалидный формат email на шаге 1 -> подсказка и disabled-кнопка")
+    @DisplayName("REG-VAL-01: невалидный формат email")
     void step1_invalidEmailFormat_showsHintAndDisablesSubmit() {
         RegistrationPage page = openRegistrationPage();
         page.fillStep1(RegistrationTestConfig.INVALID_EMAIL_FORMAT, RegistrationTestConfig.VALID_PASSWORD_FORMAT);
@@ -22,7 +18,7 @@ class RegistrationValidationTest extends RegistrationTestBase {
     }
 
     @Test
-    @DisplayName("REG-VAL-02: слабый пароль на шаге 1 -> подсказка и disabled-кнопка")
+    @DisplayName("REG-VAL-02: слабый пароль")
     void step1_weakPassword_showsHintAndDisablesSubmit() {
         RegistrationPage page = openRegistrationPage();
         page.fillStep1(RegistrationTestConfig.EXISTING_EMAIL, RegistrationTestConfig.WEAK_PASSWORD);
@@ -32,7 +28,7 @@ class RegistrationValidationTest extends RegistrationTestBase {
     }
 
     @Test
-    @DisplayName("REG-VAL-03: валидные email+пароль на шаге 1 -> кнопка enabled и переход на шаг 2")
+    @DisplayName("REG-VAL-03: валидные email+пароль")
     void step1_validInput_enablesSubmitAndProceedsToStep2() {
         RegistrationPage page = openRegistrationPage();
         page.fillStep1(RegistrationTestConfig.EXISTING_EMAIL, RegistrationTestConfig.VALID_PASSWORD_FORMAT);
@@ -40,12 +36,11 @@ class RegistrationValidationTest extends RegistrationTestBase {
         RegistrationAssertions.assertSubmitEnabled(page);
 
         page.submitStep1();
-        // Успешный переход на шаг 2 подтверждается тем, что fillStep2 находит поле имени (wait.until).
-        page.fillStep2("QA Temp", RegistrationTestConfig.VALID_TEST_PHONE);
+        page.fillStep2("Test", RegistrationTestConfig.VALID_TEST_PHONE);
     }
 
     @Test
-    @DisplayName("REG-VAL-04: невалидное имя (скрипт/спецсимволы) на шаге 2 -> подсказка")
+    @DisplayName("REG-VAL-04: невалидное имя")
     void step2_invalidName_showsHint() {
         RegistrationPage page = openRegistrationPage();
         page.fillStep1(RegistrationTestConfig.EXISTING_EMAIL, RegistrationTestConfig.VALID_PASSWORD_FORMAT).submitStep1();
@@ -56,11 +51,11 @@ class RegistrationValidationTest extends RegistrationTestBase {
     }
 
     @Test
-    @DisplayName("REG-VAL-05: невалидный/неполный телефон на шаге 2 -> подсказка")
+    @DisplayName("REG-VAL-05: невалидный телефон")
     void step2_invalidPhone_showsHint() {
         RegistrationPage page = openRegistrationPage();
         page.fillStep1(RegistrationTestConfig.EXISTING_EMAIL, RegistrationTestConfig.VALID_PASSWORD_FORMAT).submitStep1();
-        page.fillStep2("QA Temp", RegistrationTestConfig.INCOMPLETE_PHONE);
+        page.fillStep2("Test", RegistrationTestConfig.INCOMPLETE_PHONE);
 
         RegistrationAssertions.assertHintPresent(page, RegistrationTestConfig.EXPECTED_PHONE_PATTERN_HINT);
         RegistrationAssertions.assertSubmitDisabled(page);

@@ -7,22 +7,34 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.util.List;
-
 /**
  * OTP-модал подтверждения телефона, появляющийся ПОСЛЕ успешной регистрации (уже внутри
- * авторизованного приложения — qa-discovery/pages/registration.md). Сайт не использует
- * нативные {@code <input>} для кода — это 4 div-блока ({@code .text-CApzR}).
+ * авторизованного приложения — qa-discovery/pages/registration.md). Визуально код показывается
+ * как 4 отдельных div-блока ({@code .text-CApzR}), но это только ОТОБРАЖЕНИЕ — реальный ввод
+ * идёт в ОДИН скрытый {@code <input type="number" maxlength="4">}, который синхронизирует все 4
+ * визуальных блока. Подтверждено живой проверкой 2026-08-13 (диагностический прогон:
+ * {@code sendKeys} напрямую на {@code .text-CApzR} кидал {@code ElementNotInteractableException}
+ * — у div нет ни {@code contenteditable}, ни {@code tabindex}; клик в точке блока через
+ * {@code Actions} реально печатал в скрытый input и обновлял видимый блок).
  * <p>
- * ВНИМАНИЕ: {@link #enterCode(String)} не был проверен живым прогоном (модуль сознательно не
- * запускал тесты, создающие новых пользователей, — см. {@code RegistrationNewUserTest}). Если
- * {@code sendKeys} на div-блоках не сработает, потребуется JS-клик/фокус перед вводом.
+ * ИНЦИДЕНТ 2026-08-13 (заголовок): "Подтвердите номер телефона" визуально на двух строках, но
+ * это ДВА РАЗНЫХ элемента без пробела между ними в string-value поддерева — ни
+ * {@code contains(text(), 'Подтвердите номер телефона')} (матчит только ПЕРВЫЙ текстовый узел),
+ * ни {@code contains(., '...')} (склеивает без пробела) не находили модал, хотя на скриншоте он
+ * был полностью виден. Локатор сужен до одного слова "Подтвердите".
+ * <p>
+ * ИНЦИДЕНТ 2026-08-13 (ошибка после неверного кода): баннер ошибки здесь — ОТДЕЛЬНЫЙ компонент
+ * (розовый блок с CSS-переменной {@code --color-error-background} в inline {@code style}), а НЕ
+ * {@code span.theme-header_description}, который используется для баннеров ошибок на других
+ * экранах (вход/шаг 1-2 регистрации, см. {@code RegistrationPage.GLOBAL_ERROR_BANNER}). У
+ * элемента нет собственного стабильного class — матчим по CSS-переменной в style, затем берём
+ * первый вложенный {@code span} (второй span в этом же блоке — текст кнопки "Ok").
  */
 public class OtpModal {
 
-    private static final By TITLE = By.xpath("//*[contains(text(),'Подтвердите номер телефона')]");
-    private static final By CODE_DIGIT_BOXES = By.cssSelector(".text-CApzR");
-    private static final By ERROR_BANNER = By.cssSelector("span.theme-header_description");
+    private static final By TITLE = By.xpath("//*[contains(text(),'Подтвердите')]");
+    private static final By CODE_INPUT = By.cssSelector("input[type='number'][maxlength='4']");
+    private static final By ERROR_BANNER = By.cssSelector("div[style*='color-error-background'] span");
 
     private final WebDriver driver;
     private final WebDriverWait wait;
@@ -41,10 +53,8 @@ public class OtpModal {
     }
 
     public void enterCode(String fourDigitCode) {
-        List<WebElement> boxes = wait.until(ExpectedConditions.presenceOfAllElementsLocatedBy(CODE_DIGIT_BOXES));
-        for (int i = 0; i < Math.min(boxes.size(), fourDigitCode.length()); i++) {
-            boxes.get(i).sendKeys(String.valueOf(fourDigitCode.charAt(i)));
-        }
+        WebElement input = wait.until(ExpectedConditions.visibilityOfElementLocated(CODE_INPUT));
+        input.sendKeys(fourDigitCode);
     }
 
     public String getErrorTextOrEmpty() {

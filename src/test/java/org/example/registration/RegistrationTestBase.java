@@ -13,13 +13,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
 
-/**
- * Общая база для тестов модуля Registration consumer-приложения batteryfly.io —
- * qa-discovery/test-modules.md, модуль 2. По аналогии с {@code org.example.auth.AuthTestBase}.
- * Остальной consumer-сьют ({@code AuthTest}, {@code ChargingTest}, {@code Profile},
- * {@code org.example.auth.*}) не затронут. Существующий {@code org.example.RegisterTest} тоже
- * оставлен как есть (см. корневой CLAUDE.md) — этот пакет перекрывает и расширяет его охват.
- */
+
 public abstract class RegistrationTestBase {
 
     protected WebDriver driver;
@@ -55,7 +49,6 @@ public abstract class RegistrationTestBase {
         return options;
     }
 
-    /** Открывает форму входа и переключается на таб «Регистрация». */
     protected RegistrationPage openRegistrationPage() {
         return new RegistrationPage(driver, wait).openFromLoginForm(RegistrationTestConfig.BASE_URL);
     }

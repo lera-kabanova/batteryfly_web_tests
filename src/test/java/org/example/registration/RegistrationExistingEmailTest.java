@@ -5,10 +5,6 @@ import org.example.registration.pages.RegistrationPage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * Полный сабмит с уже существующим email — сервер отклоняет регистрацию, новый аккаунт НЕ
- * создаётся. Безопасно запускать многократно (мигрировано из org.example.RegisterTest#registerWithExistingEmail).
- */
 class RegistrationExistingEmailTest extends RegistrationTestBase {
 
     @Test

@@ -13,6 +13,7 @@ on:
         options:
           - auth
           - registration
+          - registration-new-user
           - navigation
           - charging
           - all
@@ -45,7 +46,22 @@ jobs:
           cache: maven
 
       - name: Run tests
-        run: mvn test -Dtest="${{ inputs.suite == 'all' && 'org.example.**' || format('org.example.{0}.**', inputs.suite) }}"
+        run: |
+          case "${{ inputs.suite }}" in
+            all)
+              PATTERN="org.example.**"
+              ;;
+            registration)
+              PATTERN="org.example.registration.**,!org.example.registration.RegistrationNewUserTest"
+              ;;
+            registration-new-user)
+              PATTERN="org.example.registration.RegistrationNewUserTest"
+              ;;
+            *)
+              PATTERN="org.example.${{ inputs.suite }}.**"
+              ;;
+          esac
+          mvn test -Dtest="$PATTERN"
         continue-on-error: true
 
       - name: Publish Test Summary
