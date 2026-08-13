@@ -1,7 +1,21 @@
 name: Selenium Tests
 
+run-name: Selenium Tests - ${{ inputs.suite }}
+
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Test suite to run'
+        required: true
+        default: auth
+        type: choice
+        options:
+          - auth
+          - registration
+          - navigation
+          - charging
+          - all
 
 permissions:
   contents: read
@@ -30,8 +44,8 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Run Auth tests
-        run: mvn test -Dtest="org.example.auth.**"
+      - name: Run tests
+        run: mvn test -Dtest="${{ inputs.suite == 'all' && 'org.example.**' || format('org.example.{0}.**', inputs.suite) }}"
         continue-on-error: true
 
       - name: Publish Test Summary
