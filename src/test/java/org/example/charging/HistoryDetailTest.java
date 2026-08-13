@@ -63,11 +63,19 @@ class HistoryDetailTest {
         prefs.put("plugins.always_open_pdf_externally", true);
 
         ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new", "--window-size=1920,1080", "--disable-gpu");
         options.addArguments("--remote-allow-origins=*", "--no-sandbox", "--disable-dev-shm-usage");
         options.setExperimentalOption("prefs", prefs);
 
         driver = new ChromeDriver(options);
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+
+        // headless Chrome по умолчанию блокирует скачивание файлов даже с настроенным
+        // download.default_directory в prefs - нужно явно разрешить через CDP.
+        Map<String, Object> downloadParams = new HashMap<>();
+        downloadParams.put("behavior", "allow");
+        downloadParams.put("downloadPath", downloadDir.toString());
+        ((ChromeDriver) driver).executeCdpCommand("Page.setDownloadBehavior", downloadParams);
     }
 
     @AfterEach

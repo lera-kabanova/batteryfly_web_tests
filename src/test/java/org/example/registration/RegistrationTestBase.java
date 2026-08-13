@@ -42,6 +42,9 @@ public abstract class RegistrationTestBase {
 
     protected static ChromeOptions freshChromeOptions() {
         ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new");
+        options.addArguments("--window-size=1920,1080");
+        options.addArguments("--disable-gpu");
         options.addArguments("--remote-allow-origins=*");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");

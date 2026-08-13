@@ -67,6 +67,7 @@ class QueueTest {
 
     private WebDriver newDriver() {
         ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new", "--disable-gpu");
         options.addArguments("--remote-allow-origins=*", "--no-sandbox", "--disable-dev-shm-usage", "--incognito");
         options.addArguments("--window-size=1280,900");
         return new ChromeDriver(options);

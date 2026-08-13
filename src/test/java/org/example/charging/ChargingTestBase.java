@@ -39,6 +39,8 @@ public abstract class ChargingTestBase {
     @BeforeEach
     void setUpChargingSession() {
         ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new");
+        options.addArguments("--disable-gpu");
         options.addArguments("--remote-allow-origins=*");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
