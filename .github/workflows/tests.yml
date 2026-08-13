@@ -3,9 +3,21 @@ name: Selenium Tests
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout project
@@ -18,12 +30,10 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # 1. Запуск Auth-тестов; continue-on-error, чтобы упавший тест не обрывал сборку отчёта
       - name: Run Auth tests
-        run: mvn test -Dtest="AuthSmokeTest,AuthNegativeTest,AuthSecurityTest,AuthSessionTest,AuthLogoutTest,AuthUiTest"
+        run: mvn test -Dtest="org.example.auth.**"
         continue-on-error: true
 
-      # 2. Краткая сводка по тестам прямо в Summary прогона GitHub Actions
       - name: Publish Test Summary
         if: always()
         uses: mikepenz/action-junit-report@v4
@@ -31,7 +41,6 @@ jobs:
           report_paths: '**/target/surefire-reports/TEST-*.xml'
           check_name: 'JUnit Test Report'
 
-      # 3. Установка Allure CLI
       - name: Install Allure CLI
         if: always()
         run: |
@@ -40,17 +49,19 @@ jobs:
           sudo mv allure-2.29.0 /opt/allure
           sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure || true
 
-      # 4. Генерация Allure HTML-отчета
       - name: Generate Allure Report
         if: always()
         run: |
           mkdir -p target/allure-results
           allure generate target/allure-results --clean -o allure-report
 
-      # 5. Публикация отчета как artifact прогона (скачивается прямо со страницы Actions)
-      - name: Upload Allure Report artifact
+      - name: Upload report for Pages
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: allure-report
           path: allure-report
+
+      - name: Deploy to GitHub Pages
+        if: always()
+        id: deployment
+        uses: actions/deploy-pages@v4
