@@ -5,9 +5,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * Ссылки на юридические документы на шаге 2 регистрации. Не доходят до финального сабмита.
- */
+
 class RegistrationLinksTest extends RegistrationTestBase {
 
     @Test

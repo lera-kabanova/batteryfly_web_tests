@@ -11,17 +11,6 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
 
-/**
- * ВНИМАНИЕ: тесты этого класса создают НАСТОЯЩИЕ новые аккаунты на боевом сайте batteryfly.io
- * (по одному на каждый запуск метода). По просьбе пользователя эти тесты НЕ запускались
- * автоматически при реализации модуля Registration (2026-07-14) — только написаны и
- * скомпилированы. Запустить вручную, когда будет нужно:
- * <pre>
- *   mvn "-Dtest=RegistrationNewUserTest" test
- * </pre>
- * Локатор ввода OTP-кода ({@link OtpModal#enterCode(String)}) не был проверен живым прогоном —
- * см. предупреждение в его Javadoc.
- */
 class RegistrationNewUserTest extends RegistrationTestBase {
 
     private String generateUniqueEmail() {
@@ -34,7 +23,7 @@ class RegistrationNewUserTest extends RegistrationTestBase {
         String email = generateUniqueEmail();
         RegistrationPage page = openRegistrationPage();
         page.fillStep1(email, "Test123!").submitStep1();
-        page.fillStep2("QA Auto Test", RegistrationTestConfig.VALID_TEST_PHONE);
+        page.fillStep2("Test", RegistrationTestConfig.VALID_TEST_PHONE);
         page.agreements().acceptBoth();
         page.submitFinal();
 
@@ -42,40 +31,33 @@ class RegistrationNewUserTest extends RegistrationTestBase {
         Assertions.assertTrue(otp.isVisible(), "OTP-модал не появился после регистрации");
 
         otp.enterCode("0000");
-        // BUG-003 (qa-discovery/bugs.md): сейчас показывается неверный текст "Неверный пароль"
-        // вместо сообщения про код — фиксируем сам факт появления ошибки как regression-guard;
-        // текст ошибки нужно будет ужесточить (assertEquals на конкретную строку) после фикса BUG-003.
         String errorText = otp.getErrorTextOrEmpty();
         Assertions.assertFalse(errorText.isEmpty(), "После неверного OTP-кода должна появиться ошибка");
     }
 
     @Test
-    @DisplayName("REG-NEW-02 (BUG-008): один телефон переиспользуется для 2 новых аккаунтов без блокировки")
+    @DisplayName("REG-NEW-02: один телефон переиспользуется для 2 новых аккаунтов без блокировки")
     void samePhoneAcrossTwoNewAccounts_isNotBlocked() {
         String sharedPhone = RegistrationTestConfig.VALID_TEST_PHONE;
 
         RegistrationPage first = openRegistrationPage();
         first.fillStep1(generateUniqueEmail(), "Test123!").submitStep1();
-        first.fillStep2("QA Auto Test A", sharedPhone);
+        first.fillStep2("Test A", sharedPhone);
         first.agreements().acceptBoth();
         first.submitFinal();
 
-        // Вторая регистрация требует независимой неавторизованной сессии — первая уже
-        // залогинена после успешного сабмита (см. observations.md), поэтому используется
-        // отдельный WebDriver, а не общий driver/wait из RegistrationTestBase.
         WebDriver secondDriver = new ChromeDriver(freshChromeOptions());
         try {
             WebDriverWait secondWait = new WebDriverWait(secondDriver, Duration.ofSeconds(15));
             RegistrationPage second = new RegistrationPage(secondDriver, secondWait)
                     .openFromLoginForm(RegistrationTestConfig.BASE_URL);
             second.fillStep1(generateUniqueEmail(), "Test123!").submitStep1();
-            second.fillStep2("QA Auto Test B", sharedPhone);
+            second.fillStep2("Test B", sharedPhone);
             second.agreements().acceptBoth();
             second.submitFinal();
 
             Assertions.assertTrue(second.getGlobalErrorTextOrEmpty().isEmpty(),
-                    "Ожидалось отсутствие блокировки по телефону (см. BUG-008) — "
-                            + "если сервер теперь блокирует повтор, тест нужно обновить под новое поведение");
+                    "Ожидалось отсутствие блокировки по телефону");
         } finally {
             secondDriver.quit();
         }

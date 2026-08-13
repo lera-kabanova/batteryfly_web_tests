@@ -1,10 +1,5 @@
 package org.example.registration;
 
-/**
- * Конфигурация тестового окружения модуля Registration consumer-приложения batteryfly.io.
- * Значения подтверждены живой проверкой 2026-07-14 через
- * tools/playwright-codegen/explore-agreement-toggles.js и explore-registration-validation.js.
- */
 public final class RegistrationTestConfig {
 
     private RegistrationTestConfig() {
@@ -12,7 +7,6 @@ public final class RegistrationTestConfig {
 
     public static final String BASE_URL = "https://batteryfly.io/";
 
-    /** Уже зарегистрированный email — безопасен для негативных тестов, новый аккаунт не создаётся. */
     public static final String EXISTING_EMAIL = "lerakab5@gmail.com";
 
     public static final String WEAK_PASSWORD = "123";

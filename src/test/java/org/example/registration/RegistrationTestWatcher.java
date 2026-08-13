@@ -5,11 +5,6 @@ import org.junit.jupiter.api.extension.TestWatcher;
 
 import java.util.Optional;
 
-/**
- * Пишет в консоль результат каждого теста модуля Registration: PASS/FAIL/DISABLED/ABORTED.
- * Аналог {@code org.example.auth.AuthTestWatcher} / {@code org.example.business.BusinessTestWatcher},
- * продублирован намеренно — модули не должны зависеть друг от друга.
- */
 public class RegistrationTestWatcher implements TestWatcher {
 
     @Override
