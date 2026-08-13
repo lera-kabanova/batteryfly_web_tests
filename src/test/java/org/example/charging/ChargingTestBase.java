@@ -16,6 +16,8 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Общая база для тестов модуля Charging — qa-discovery/test-modules.md, модуль 8.
@@ -49,6 +51,11 @@ public abstract class ChargingTestBase {
         // без фиксированного размера окна ChromeDriver стартует с маленьким дефолтным viewport,
         // что могло быть причиной несработавшего свайпа при выборе "Зарядить на 80%" (2026-07-16).
         options.addArguments("--window-size=1280,900");
+
+        options.addArguments("--lang=ru-RU");
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("intl.accept_languages", "ru-RU,ru");
+        options.setExperimentalOption("prefs", prefs);
 
         driver = new ChromeDriver(options);
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));

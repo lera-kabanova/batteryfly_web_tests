@@ -14,6 +14,8 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Общая база для тестов модуля Navigation & Access Control — qa-discovery/test-modules.md,
@@ -45,6 +47,11 @@ public abstract class NavigationTestBase {
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--incognito");
+
+        options.addArguments("--lang=ru-RU");
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("intl.accept_languages", "ru-RU,ru");
+        options.setExperimentalOption("prefs", prefs);
 
         driver = new ChromeDriver(options);
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));

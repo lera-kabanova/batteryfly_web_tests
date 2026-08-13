@@ -12,7 +12,8 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
-
+import java.util.HashMap;
+import java.util.Map;
 
 public abstract class RegistrationTestBase {
 
@@ -49,6 +50,12 @@ public abstract class RegistrationTestBase {
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--incognito");
+
+        options.addArguments("--lang=ru-RU");
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("intl.accept_languages", "ru-RU,ru");
+        options.setExperimentalOption("prefs", prefs);
+
         return options;
     }
 

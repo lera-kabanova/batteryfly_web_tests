@@ -31,6 +31,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Очередь на занятой станции (сценарии 16, 17 из задания) — ДВА одновременных реальных
@@ -70,6 +72,12 @@ class QueueTest {
         options.addArguments("--headless=new", "--disable-gpu");
         options.addArguments("--remote-allow-origins=*", "--no-sandbox", "--disable-dev-shm-usage", "--incognito");
         options.addArguments("--window-size=1280,900");
+
+        options.addArguments("--lang=ru-RU");
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("intl.accept_languages", "ru-RU,ru");
+        options.setExperimentalOption("prefs", prefs);
+
         return new ChromeDriver(options);
     }
 

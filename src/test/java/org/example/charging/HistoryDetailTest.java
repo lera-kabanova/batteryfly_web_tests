@@ -61,10 +61,12 @@ class HistoryDetailTest {
         prefs.put("download.default_directory", downloadDir.toString());
         prefs.put("download.prompt_for_download", false);
         prefs.put("plugins.always_open_pdf_externally", true);
+        prefs.put("intl.accept_languages", "ru-RU,ru");
 
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--headless=new", "--window-size=1920,1080", "--disable-gpu");
         options.addArguments("--remote-allow-origins=*", "--no-sandbox", "--disable-dev-shm-usage");
+        options.addArguments("--lang=ru-RU");
         options.setExperimentalOption("prefs", prefs);
 
         driver = new ChromeDriver(options);
