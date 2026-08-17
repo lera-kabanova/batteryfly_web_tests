@@ -34,18 +34,6 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Очередь на занятой станции (сценарии 16, 17 из задания) — ДВА одновременных реальных
- * пользователя на РАЗНЫХ WebDriver. Пользователь 1 (реально заряжается) = lerakab5@gmail.com
- * (баланс ~11 BYN на 2026-07-24), Пользователь 2 (встаёт в очередь — бесплатно) =
- * cinemawebwelcome@gmail.com. Роли зеркальны по сравнению с остальными Booking-тестами, т.к.
- * cinemawebwelcome сейчас истощён по балансу для реальной зарядки (см. диагностику
- * {@code ChargingUiAndPersistenceTest}). Экран подтверждения постановки в очередь - "Бронирование"
- * / "Режим: Постановка в очередь" / "Стоимость: 0 BYN", тот же {@link BookingConfirmationPage},
- * что и обычная бронь.
- * <p>
- * Не расширяет {@link ChargingTestBase} — нужны ДВА независимых driver/wait одновременно.
- */
 class QueueTest {
 
     private WebDriver driverA;
@@ -69,7 +57,7 @@ class QueueTest {
 
     private WebDriver newDriver() {
         ChromeOptions options = new ChromeOptions();
-        options.addArguments("--headless=new", "--disable-gpu");
+        //options.addArguments("--headless=new", "--disable-gpu");
         options.addArguments("--remote-allow-origins=*", "--no-sandbox", "--disable-dev-shm-usage", "--incognito");
         options.addArguments("--window-size=1280,900");
 
@@ -102,7 +90,7 @@ class QueueTest {
                 sheetB.expand().clickCancel().confirmCancel();
             }
         } catch (Exception ignored) {
-            // B может не иметь активной брони/очереди на момент очистки - это ок.
+
         }
         if (driverA != null) {
             driverA.quit();
@@ -122,14 +110,7 @@ class QueueTest {
     @Test
     @DisplayName("QUEUE-16: пользователь 1 заряжается, пользователь 2 встаёт в очередь, продвижение после завершения")
     void queue_userChargingUserQueued_progressesAfterFirstFinishes() throws IOException {
-        // Пользователь 1 (заряжается) = lerakab5 (баланс ~11 BYN на 2026-07-24) - cinemawebwelcome
-        // сейчас слишком истощён по балансу для реальной зарядки (см. диагностику
-        // ChargingUiAndPersistenceTest), поэтому роли по сравнению с остальными Booking-тестами
-        // здесь ЗЕРКАЛЬНО поменяны: cinemawebwelcome встаёт в очередь (бесплатно, не требует много баланса).
-        // B логинится и разблокируется ПЕРВЫМ, пока станция ещё свободна - ensureAccountCanBook()
-        // сам делает реальную бронь/проверку, а на занятой активной зарядкой станции карточка
-        // "Стать в очередь" не имеет своего data-testid (см. ChargingTestConfig), из-за чего
-        // ensureAccountCanBook() упал бы, если вызвать его ПОСЛЕ старта сессии A.
+
         loginAs(driverB, waitB, AuthTestConfig.USER_EMAIL_CINEMA, AuthTestConfig.SECOND_USER_PASSWORD);
         BookingUnblockHelper.ensureAccountCanBook(driverB, waitB);
 
@@ -144,6 +125,10 @@ class QueueTest {
         sessionA.confirmChargeStarted();
         Assertions.assertTrue(driverA.getCurrentUrl().contains("/charge"), "Сессия пользователя 1 должна перейти на /charge");
 
+        // Пользователь 1 не должен останавливать зарядку, пока не появились реальные проценты -
+        // иначе останавливаем сессию, которая на бэкенде ещё толком не стартовала.
+        sessionA.pollUntilPercentReached(1);
+
         StationConnectorWizardPage wizardB = new StationConnectorWizardPage(driverB, waitB)
                 .openStation(AuthTestConfig.BASE_URL, ChargingTestConfig.STATION_DEEP_LINK_PATH);
         wizardB.selectConnector(ChargingTestConfig.CONNECTOR_TEXT_FRAGMENT);
@@ -152,9 +137,6 @@ class QueueTest {
         Assertions.assertTrue(wizardBBody.contains("Стать в очередь"),
                 "Пользователь 2 должен увидеть предложение встать в очередь, получено: " + wizardBBody);
 
-        // Когда станция занята АКТИВНОЙ ЗАРЯДКОЙ (а не просто чужой бронью), "Стать в очередь" -
-        // единственный вариант в карусели объёма и уже активен по умолчанию (нет отдельной
-        // карточки с data-testid для выбора, см. ChargingTestConfig) - сразу жмём "Далее".
         BookingConfirmationPage queueConfirmation = wizardB.clickNextForBooking();
         Assertions.assertTrue(queueConfirmation.isLoaded(), "Экран подтверждения постановки в очередь не загрузился");
         String queueBody = queueConfirmation.getPageBodyText();
@@ -162,53 +144,35 @@ class QueueTest {
                 "Ожидался режим 'Постановка в очередь', получено: " + queueBody);
         queueConfirmation.clickActivate();
 
-        // ВАЖНАЯ НАХОДКА 2026-07-24: пока B просто ЖДЁТ в очереди (первый пользователь ещё
-        // заряжается), плашка "Забронировано" НЕ появляется на его главном экране - никакого
-        // видимого индикатора позиции в очереди нет вообще (см. automation-checklist.md). Плашка
-        // с обратным отсчётом появляется ТОЛЬКО ПОСЛЕ продвижения (когда приходит очередь B
-        // реально начать зарядку) - это и есть момент "продвижения по очереди", который нужно
-        // ловить ПОСЛЕ остановки сессии A, а не сразу после присоединения к очереди.
         driverB.get(AuthTestConfig.BASE_URL);
         String bodyRightAfterJoining = driverB.findElement(By.tagName("body")).getText();
         screenshot(driverB, "queue-02-user-b-waiting-no-banner-expected");
         System.out.println("[INFO] Главный экран B сразу после присоединения к очереди (баннера может не быть - это ожидаемо): "
                 + bodyRightAfterJoining.replace("\n", " | "));
 
-        // Останавливаем сессию A сразу после старта - деньги/точное время роли не играют для этого теста.
+        // Пользователь 1 не завершает зарядку сразу после того, как пользователь 2 встал в очередь -
+        // даём бэкенду 30с зафиксировать позицию B в очереди перед тем, как освобождать коннектор.
+        sleep(30_000);
+
         driverA.get(AuthTestConfig.BASE_URL + "charge");
         sessionA.stopAndConfirm();
         Assertions.assertTrue(sessionA.waitForFinalText(), "Сессия пользователя 1 не завершилась штатно");
         sessionA.clickKrutoToFinish();
-        sessionA = null; // уже корректно завершена, @AfterEach не должен трогать её снова
+        sessionA = null;
 
-        // Продвижение B: плашка "Забронировано" (с обратным отсчётом) должна ПОЯВИТЬСЯ в течение
-        // ~20-30с после завершения A - подтверждено живой проверкой 2026-07-24 (после ручной
-        // остановки сессии первого пользователя вторoй показал "13:14 Забронировано").
-        // ВАЖНО: НЕ оборачивать проверку в WebDriverWait ВНУТРИ этой лямбды - если внутренний wait
-        // бросит TimeoutException, оно не входит в список игнорируемых исключений внешнего
-        // FluentWait и мгновенно провалит весь тест вместо повторной попытки (реальный инцидент
-        // 2026-07-24 в BookingExpiryTest, см. automation-checklist.md). Каждая попытка обёрнута в
-        // try/catch, трактующий любое исключение как "ещё не продвинулся".
-        boolean promoted = false;
-        long promotionDeadline = System.currentTimeMillis() + Duration.ofSeconds(30).toMillis();
-        while (System.currentTimeMillis() < promotionDeadline) {
-            try {
-                driverB.navigate().refresh();
-                if (new BookingActionSheet(driverB, waitB).isBannerVisible()) {
-                    promoted = true;
-                    break;
-                }
-            } catch (Exception e) {
-                System.out.println("[WARN] Проверка продвижения B упала с исключением, пробуем снова: " + e);
-            }
-            sleep(3000);
-        }
-        Assertions.assertTrue(promoted, "Пользователь 2 не продвинулся по очереди за 30с после завершения сессии пользователя 1");
-
+        // После завершения зарядки даём бэкенду 30с на продвижение очереди и смотрим один раз,
+        // перешла ли плашка B в статус "Забронировано" с обратным отсчётом.
+        sleep(30_000);
+        driverB.navigate().refresh();
         BookingActionSheet promotedSheet = new BookingActionSheet(driverB, waitB);
-        Assertions.assertTrue(promotedSheet.isBannerVisible(),
-                "После завершения сессии пользователя 1 пользователь 2 должен продвинуться по очереди "
-                        + "и получить активную бронь с обратным отсчётом");
+        boolean promoted = promotedSheet.isBannerVisible();
+        if (!promoted) {
+            screenshot(driverB, "queue-promotion-timeout");
+            String bodyAtTimeout = driverB.findElement(By.tagName("body")).getText();
+            Assertions.fail("Пользователь 2 не продвинулся по очереди за 30с после завершения сессии пользователя 1. "
+                    + "Скриншот: target/screenshots/queue-promotion-timeout.png. Body: " + bodyAtTimeout);
+        }
+
         int countdownAfterPromotion = promotedSheet.readCountdownSeconds();
         Assertions.assertTrue(countdownAfterPromotion > 0 && countdownAfterPromotion <= 15 * 60,
                 "Обратный отсчёт после продвижения должен быть в пределах 15 минут, получено секунд: " + countdownAfterPromotion);

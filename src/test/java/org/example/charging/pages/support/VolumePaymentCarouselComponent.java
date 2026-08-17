@@ -1,7 +1,9 @@
 package org.example.charging.pages.support;
 
+import org.example.charging.ChargingTestConfig;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -42,9 +44,36 @@ public class VolumePaymentCarouselComponent {
         return style != null && style.contains("scaleY(1)");
     }
 
-    /** Находит карточку по data-testid, свайпает её собственную карусель при необходимости, затем кликает. */
+    private static final By CUSTOM_KWH_INPUT = By.cssSelector("input.inputPower-wi2Wf");
+    private static final By CUSTOM_BYN_INPUT = By.cssSelector("input.inputSum-iUJek");
+
+    /**
+     * Выбирает карточку "Свои условия" ({@link ChargingTestConfig#VOLUME_CARD_TESTID_CUSTOM}) и
+     * вводит объём в kWh — сумма в BYN пересчитывается автоматически. Подтверждено живой проверкой
+     * 2026-08-17: пересчёт срабатывает по потере фокуса (blur), НЕ мгновенно при вводе — без
+     * {@code Keys.TAB} после ввода поле BYN остаётся {@code 0}, и кнопка "Далее" остаётся disabled.
+     * Ждём именно изменения значения BYN, а не фиксированную паузу, чтобы не гадать с таймингом.
+     */
+    public void selectCustomKwh(String kwh) {
+        selectByTestId(ChargingTestConfig.VOLUME_CARD_TESTID_CUSTOM);
+        WebElement kwhInput = driver.findElement(CUSTOM_KWH_INPUT);
+        kwhInput.click();
+        kwhInput.sendKeys(kwh);
+        kwhInput.sendKeys(Keys.TAB);
+        wait.until(d -> !"0".equals(d.findElement(CUSTOM_BYN_INPUT).getAttribute("value")));
+    }
+
+    /**
+     * Находит карточку по data-testid, свайпает её собственную карусель при необходимости, затем кликает.
+     * ИНЦИДЕНТ 2026-08-17 (QueueTest, аккаунт cinemawebwelcome с "Полный бак" уже выбранным по
+     * умолчанию от предыдущей сессии): обычный {@code driver.findElement} без ожидания иногда
+     * бросал {@code NoSuchElementException} сразу после открытия визарда - карточка карусели ещё
+     * не успевала отрисоваться в DOM. Теперь явно ждём её присутствия перед поиском.
+     */
     public void selectByTestId(String testId) {
-        WebElement card = driver.findElement(By.cssSelector("[data-testid='" + testId + "']"));
+        By locator = By.cssSelector("[data-testid='" + testId + "']");
+        wait.until(org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated(locator));
+        WebElement card = driver.findElement(locator);
         swipeUntilActiveThenClick(card);
     }
 

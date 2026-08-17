@@ -67,6 +67,14 @@ public final class BookingUnblockHelper {
         return new BookingConfirmationPage(driver, wait);
     }
 
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     /** Выбирает карточку "Забронировать" и кликает "Далее" - без ожидания результата. */
     private static void attemptReserveClick(WebDriver driver, WebDriverWait wait) {
         StationConnectorWizardPage wizard = new StationConnectorWizardPage(driver, wait)
@@ -107,6 +115,14 @@ public final class BookingUnblockHelper {
             // Диалог мог закрыться сам/иначе - не критично, едем дальше на главный экран.
         }
         performMinimalUnblockCharge(driver, wait);
+
+        // Коннектор не освобождается на бэкенде мгновенно после остановки зарядки - попытка брони
+        // сразу после показывает "Коннектор временно недоступен..." (подтверждено вручную
+        // пользователем, 2026-08-17: ошибка пропадает примерно через 30с). Простая пауза вместо
+        // retry-цикла - каждая повторная попытка брони делает реальные клики по визарду станции,
+        // и в цикле это оказалось рискованнее одной паузы перед единственной попыткой.
+        System.out.println("[INFO] Жду 30с, чтобы коннектор освободился на бэкенде перед повторной бронью.");
+        sleep(30_000);
     }
 
     private static void captureDiagnostics(WebDriver driver, String name) {

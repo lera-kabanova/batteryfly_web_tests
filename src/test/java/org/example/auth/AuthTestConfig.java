@@ -17,6 +17,9 @@ public final class AuthTestConfig {
     public static final String USER_EMAIL_CINEMA = "cinemawebwelcome@gmail.com";
     public static final String SECOND_USER_PASSWORD = "Lera123!";
 
+    public static final String LERAKAB5_EMAIL = "lerakab5@gmail.com";
+    public static final String LERAKAB5_PASSWORD = "Lera123!";
+
     public static final String UNREGISTERED_EMAIL = "unregistered_test_user_9999@gmail.com";
     public static final String INVALID_EMAIL_FORMAT = "not-an-email";
 
