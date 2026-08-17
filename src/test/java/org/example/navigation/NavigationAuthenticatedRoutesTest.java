@@ -9,12 +9,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.stream.Stream;
 
-/**
- * Маршруты, обычно достигаемые через иконки шапки (чат/ассистент/"+"/уведомления) и меню
- * профиля, открываются напрямую по URL в авторизованной сессии без редиректа. Тестируется
- * через прямой переход по URL, а не клик по иконке — у иконок шапки нет стабильных локаторов
- * (qa-discovery/observations.md). Источник: qa-discovery/test-modules.md, модуль 5.
- */
 class NavigationAuthenticatedRoutesTest extends NavigationTestBase {
 
     static Stream<String> routes() {

@@ -5,11 +5,6 @@ import org.junit.jupiter.api.extension.TestWatcher;
 
 import java.util.Optional;
 
-/**
- * Пишет в консоль результат каждого теста модуля Navigation & Access Control:
- * PASS/FAIL/DISABLED/ABORTED. Дублирует {@code org.example.auth.AuthTestWatcher} намеренно —
- * тривиальный boilerplate, а не значимая доменная логика, которую стоило бы шарить.
- */
 public class NavigationTestWatcher implements TestWatcher {
 
     @Override

@@ -6,11 +6,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * Deep-linking на карточку станции и навигация "назад". Источник: qa-discovery/test-modules.md,
- * модуль 5; локаторы подтверждены qa-discovery/charging-flows.md (способ №4) и живой проверкой
- * 2026-07-16 (tools/playwright-codegen/explore-station-back-button.js).
- */
 class NavigationDeepLinkTest extends NavigationTestBase {
 
     @Test

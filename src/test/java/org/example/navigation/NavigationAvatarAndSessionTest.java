@@ -7,14 +7,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * Навигация через аватар/приветствие и сохранение сессии на вложенных маршрутах.
- * Источник: qa-discovery/test-modules.md, модуль 5.
- */
 class NavigationAvatarAndSessionTest extends NavigationTestBase {
 
     @Test
-    @DisplayName("NAV-AVATAR-01: клик по приветствию/аватару ведёт на /profile")
+    @DisplayName("NAV-AVATAR-01: клик по имени ведёт на /profile")
     void clickingWelcomeArea_navigatesToProfile() {
         AuthenticatedAreaPage home = loginAsValidUser();
         Assertions.assertTrue(home.isWelcomeVisible(), "Приветствие не появилось после входа");

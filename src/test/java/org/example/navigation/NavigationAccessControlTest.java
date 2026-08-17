@@ -8,10 +8,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.stream.Stream;
 
-/**
- * Прямой заход на защищённые маршруты без сессии -> редирект на форму входа.
- * Источник: qa-discovery/test-modules.md, модуль 5 (Navigation & Access Control).
- */
+
 class NavigationAccessControlTest extends NavigationTestBase {
 
     static Stream<String> protectedRoutes() {

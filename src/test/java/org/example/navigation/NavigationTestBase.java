@@ -17,13 +17,6 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Общая база для тестов модуля Navigation & Access Control — qa-discovery/test-modules.md,
- * модуль 5. В отличие от Registration (независимый соседний модуль), Navigation явно
- * ЗАВИСИТ от Authentication (qa-discovery/automation-roadmap.md, Phase 4), поэтому здесь
- * переиспользуются {@code org.example.auth.pages.LoginPage}/{@code AuthenticatedAreaPage} и
- * {@code AuthTestConfig} вместо дублирования формы входа.
- */
 public abstract class NavigationTestBase {
 
     protected WebDriver driver;
@@ -64,12 +57,6 @@ public abstract class NavigationTestBase {
         }
     }
 
-    /**
-     * Логинится валидными кредами общего read-only тестового аккаунта и ЖДЁТ подтверждения
-     * успешного входа (приветствие), прежде чем возвращать управление тесту. Без этого ожидания
-     * последующий driver.get() на другой маршрут иногда стартует до завершения OIDC-редиректа
-     * (гонка состояний) — подтверждено 2026-07-16 (см. NavigationAuthenticatedRoutesTest).
-     */
     protected AuthenticatedAreaPage loginAsValidUser() {
         LoginPage loginPage = new LoginPage(driver, wait).open(AuthTestConfig.BASE_URL);
         loginPage.login(AuthTestConfig.VALID_EMAIL, AuthTestConfig.VALID_PASSWORD);
