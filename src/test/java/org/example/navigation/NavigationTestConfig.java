@@ -11,6 +11,6 @@ public final class NavigationTestConfig {
             "profile", "settings", "history", "cars", "cards",
             "chat", "assistant", "scanner", "request", "notification"
     );
-    Ы
+
     public static final String STATION_DEEP_LINK_PATH = "station/49";
 }
