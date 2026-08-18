@@ -156,7 +156,13 @@ public class ChargingSessionPage {
 
     private Integer readPercent() {
         for (WebElement el : driver.findElements(PERCENT_TEXTS)) {
-            String text = el.getText().trim();
+            String text = el.getText();
+            // getText() изредка возвращает null (не пустую строку) в момент React-перерисовки -
+            // тот же класс гонки, что и StaleElementReferenceException в вызывающих методах.
+            if (text == null) {
+                continue;
+            }
+            text = text.trim();
             if (text.matches("\\d+\\s*%")) {
                 return Integer.parseInt(text.replaceAll("[^0-9]", ""));
             }
@@ -182,7 +188,13 @@ public class ChargingSessionPage {
      * склеивал их в "140" и ломал проверку монотонности). Берём только часть ДО "/".
      */
     private double readNumeric(By locator) {
-        String text = driver.findElement(locator).getText().trim().replace(",", ".");
+        String text = driver.findElement(locator).getText();
+        // Тот же класс гонки, что и в readPercent() - getText() изредка возвращает null во время
+        // React-перерисовки, а не пустую строку.
+        if (text == null) {
+            throw new StaleElementReferenceException("getText() вернул null для " + locator + " - элемент перерисовывается.");
+        }
+        text = text.trim().replace(",", ".");
         String delivered = text.split("/")[0];
         return Double.parseDouble(delivered.replaceAll("[^0-9.]", ""));
     }

@@ -57,7 +57,7 @@ class QueueTest {
 
     private WebDriver newDriver() {
         ChromeOptions options = new ChromeOptions();
-        //options.addArguments("--headless=new", "--disable-gpu");
+        options.addArguments("--headless=new", "--disable-gpu");
         options.addArguments("--remote-allow-origins=*", "--no-sandbox", "--disable-dev-shm-usage", "--incognito");
         options.addArguments("--window-size=1280,900");
 
@@ -84,13 +84,26 @@ class QueueTest {
             System.out.println("[WARN] Cleanup A (charging) failed: " + e);
         }
         try {
+            driverA.get(AuthTestConfig.BASE_URL);
+            BookingActionSheet sheetA = new BookingActionSheet(driverA, waitA);
+            if (sheetA.isBannerVisible()) {
+                sheetA.expand().clickCancel().confirmCancel();
+            }
+        } catch (Exception e) {
+            System.out.println("[WARN] Cleanup A (booking) failed: " + e
+                    + " - ПРОВЕРЬТЕ ВРУЧНУЮ, СТАНЦИЯ #49 МОЖЕТ ОСТАВАТЬСЯ ЗАБРОНИРОВАНА ПОЛЬЗОВАТЕЛЕМ 1.");
+        }
+        try {
             driverB.get(AuthTestConfig.BASE_URL);
-            BookingActionSheet sheetB = new BookingActionSheet(driverB, waitB).waitForBannerVisible();
+            BookingActionSheet sheetB = new BookingActionSheet(driverB, waitB);
             if (sheetB.isBannerVisible()) {
                 sheetB.expand().clickCancel().confirmCancel();
+            } else if (sheetB.isQueueBannerVisible()) {
+                sheetB.expandQueueBanner().clickCancel().confirmCancel();
             }
-        } catch (Exception ignored) {
-
+        } catch (Exception e) {
+            System.out.println("[WARN] Cleanup B (booking/queue) failed: " + e
+                    + " - ПРОВЕРЬТЕ ВРУЧНУЮ, СТАНЦИЯ #49 МОЖЕТ ОСТАВАТЬСЯ ЗАНЯТА ПОЛЬЗОВАТЕЛЕМ 2.");
         }
         if (driverA != null) {
             driverA.quit();
@@ -108,31 +121,30 @@ class QueueTest {
     }
 
     @Test
-    @DisplayName("QUEUE-16: пользователь 1 заряжается, пользователь 2 встаёт в очередь, продвижение после завершения")
+    @DisplayName("QUEUE-16: пользователь 1 бронирует и заряжается, пользователь 2 встаёт в очередь, продвижение после завершения")
     void queue_userChargingUserQueued_progressesAfterFirstFinishes() throws IOException {
 
         loginAs(driverB, waitB, AuthTestConfig.USER_EMAIL_CINEMA, AuthTestConfig.SECOND_USER_PASSWORD);
         BookingUnblockHelper.ensureAccountCanBook(driverB, waitB);
 
         loginAs(driverA, waitA, "lerakab5@gmail.com", "Lera123!");
-        StationConnectorWizardPage wizardA = new StationConnectorWizardPage(driverA, waitA)
-                .openStation(AuthTestConfig.BASE_URL, ChargingTestConfig.STATION_DEEP_LINK_PATH);
-        wizardA.selectConnector(ChargingTestConfig.CONNECTOR_TEXT_FRAGMENT);
-        wizardA.carousel().selectByTestId(ChargingTestConfig.VOLUME_CARD_TESTID_FULL_TANK);
-        wizardA.carousel().selectByTestId(ChargingTestConfig.PAYMENT_CARD_TESTID_BALANCE);
-        ChargingConfirmationPage confirmationA = wizardA.clickNext();
-        sessionA = confirmationA.clickPayAndCharge();
-        sessionA.confirmChargeStarted();
-        Assertions.assertTrue(driverA.getCurrentUrl().contains("/charge"), "Сессия пользователя 1 должна перейти на /charge");
+        BookingConfirmationPage confirmationA = BookingUnblockHelper.reserveWithAutoUnblock(driverA, waitA);
+        Assertions.assertTrue(confirmationA.isLoaded(), "Экран подтверждения брони пользователя 1 не загрузился");
+        confirmationA.clickActivate();
 
-        // Пользователь 1 не должен останавливать зарядку, пока не появились реальные проценты -
-        // иначе останавливаем сессию, которая на бэкенде ещё толком не стартовала.
-        sessionA.pollUntilPercentReached(1);
+        driverA.get(AuthTestConfig.BASE_URL);
+        BookingActionSheet sheetA = new BookingActionSheet(driverA, waitA).waitForBannerVisible();
+        Assertions.assertTrue(sheetA.isBannerVisible(),
+                "У пользователя 1 должна появиться плашка брони с обратным отсчётом");
+        int countdownA = sheetA.readCountdownSeconds();
+        Assertions.assertTrue(countdownA > 0 && countdownA <= 15 * 60,
+                "Обратный отсчёт брони пользователя 1 должен быть в пределах 15 минут, получено секунд: " + countdownA);
+        screenshot(driverA, "queue-01-user-a-reserved");
 
         StationConnectorWizardPage wizardB = new StationConnectorWizardPage(driverB, waitB)
                 .openStation(AuthTestConfig.BASE_URL, ChargingTestConfig.STATION_DEEP_LINK_PATH);
         wizardB.selectConnector(ChargingTestConfig.CONNECTOR_TEXT_FRAGMENT);
-        screenshot(driverB, "queue-01-wizard-b-busy");
+        screenshot(driverB, "queue-02-wizard-b-busy");
         String wizardBBody = driverB.findElement(By.tagName("body")).getText();
         Assertions.assertTrue(wizardBBody.contains("Стать в очередь"),
                 "Пользователь 2 должен увидеть предложение встать в очередь, получено: " + wizardBBody);
@@ -145,14 +157,37 @@ class QueueTest {
         queueConfirmation.clickActivate();
 
         driverB.get(AuthTestConfig.BASE_URL);
-        String bodyRightAfterJoining = driverB.findElement(By.tagName("body")).getText();
-        screenshot(driverB, "queue-02-user-b-waiting-no-banner-expected");
-        System.out.println("[INFO] Главный экран B сразу после присоединения к очереди (баннера может не быть - это ожидаемо): "
-                + bodyRightAfterJoining.replace("\n", " | "));
+        BookingActionSheet queueSheetB = new BookingActionSheet(driverB, waitB).waitForQueueBannerVisible();
+        Assertions.assertTrue(queueSheetB.isQueueBannerVisible(),
+                "У пользователя 2 должна появиться плашка очереди с номером позиции ('В очереди N машина')");
+        int queuePosition = queueSheetB.readQueuePosition();
+        Assertions.assertTrue(queuePosition >= 1, "Позиция в очереди должна быть >= 1, получено: " + queuePosition);
+        screenshot(driverB, "queue-03-user-b-queued");
 
-        // Пользователь 1 не завершает зарядку сразу после того, как пользователь 2 встал в очередь -
-        // даём бэкенду 30с зафиксировать позицию B в очереди перед тем, как освобождать коннектор.
-        sleep(30_000);
+        driverA.get(AuthTestConfig.BASE_URL);
+        StationConnectorWizardPage wizardAFromBooking = new BookingActionSheet(driverA, waitA)
+                .waitForBannerVisible().expand().clickStartCharging();
+        wizardAFromBooking.carousel().selectByTestId(ChargingTestConfig.VOLUME_CARD_TESTID_FULL_TANK);
+        wizardAFromBooking.carousel().selectByTestId(ChargingTestConfig.PAYMENT_CARD_TESTID_BALANCE);
+        ChargingConfirmationPage confirmationChargeA = wizardAFromBooking.clickNext();
+        sessionA = confirmationChargeA.clickPayAndCharge();
+        sessionA.confirmChargeStarted();
+        Assertions.assertTrue(driverA.getCurrentUrl().contains("/charge"), "Сессия пользователя 1 должна перейти на /charge");
+
+        sessionA.pollUntilPercentReached(3);
+
+        driverB.navigate().refresh();
+        BookingActionSheet sheetBDuringCharge = new BookingActionSheet(driverB, waitB);
+        try {
+            sheetBDuringCharge.waitForQueueBannerVisible();
+        } catch (Exception ignored) {
+        }
+        if (!sheetBDuringCharge.isQueueBannerVisible()) {
+            screenshot(driverB, "queue-during-charge-diag");
+            String bodyDuringCharge = driverB.findElement(By.tagName("body")).getText();
+            Assertions.fail("Пока пользователь 1 заряжается, плашка пользователя 2 должна оставаться в статусе "
+                    + "очереди. Скриншот: target/screenshots/queue-during-charge-diag.png. Body: " + bodyDuringCharge);
+        }
 
         driverA.get(AuthTestConfig.BASE_URL + "charge");
         sessionA.stopAndConfirm();
@@ -160,11 +195,13 @@ class QueueTest {
         sessionA.clickKrutoToFinish();
         sessionA = null;
 
-        // После завершения зарядки даём бэкенду 30с на продвижение очереди и смотрим один раз,
-        // перешла ли плашка B в статус "Забронировано" с обратным отсчётом.
         sleep(30_000);
         driverB.navigate().refresh();
         BookingActionSheet promotedSheet = new BookingActionSheet(driverB, waitB);
+        try {
+            promotedSheet.waitForBannerVisible();
+        } catch (Exception ignored) {
+        }
         boolean promoted = promotedSheet.isBannerVisible();
         if (!promoted) {
             screenshot(driverB, "queue-promotion-timeout");
@@ -176,8 +213,11 @@ class QueueTest {
         int countdownAfterPromotion = promotedSheet.readCountdownSeconds();
         Assertions.assertTrue(countdownAfterPromotion > 0 && countdownAfterPromotion <= 15 * 60,
                 "Обратный отсчёт после продвижения должен быть в пределах 15 минут, получено секунд: " + countdownAfterPromotion);
-        screenshot(driverB, "queue-03-user-b-promoted");
+        screenshot(driverB, "queue-04-user-b-promoted");
         System.out.println("[INFO] Пользователь 2 продвинулся по очереди, обратный отсчёт: " + countdownAfterPromotion + "с");
+
+        promotedSheet.expand().clickCancel().confirmCancel();
+        System.out.println("[INFO] Бронь пользователя 2 отменена после проверки продвижения по очереди.");
     }
 
     private void sleep(long millis) {

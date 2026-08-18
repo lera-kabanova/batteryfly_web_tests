@@ -6,7 +6,10 @@ import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+
+import java.util.List;
 
 /**
  * Карусель выбора объёма зарядки ИЛИ способа оплаты. Порт проверенной боем логики
@@ -65,16 +68,49 @@ public class VolumePaymentCarouselComponent {
 
     /**
      * Находит карточку по data-testid, свайпает её собственную карусель при необходимости, затем кликает.
-     * ИНЦИДЕНТ 2026-08-17 (QueueTest, аккаунт cinemawebwelcome с "Полный бак" уже выбранным по
-     * умолчанию от предыдущей сессии): обычный {@code driver.findElement} без ожидания иногда
-     * бросал {@code NoSuchElementException} сразу после открытия визарда - карточка карусели ещё
-     * не успевала отрисоваться в DOM. Теперь явно ждём её присутствия перед поиском.
+     * <p>
+     * ИНЦИДЕНТ 2026-08-18 (QueueTest): при отладке падения на карточке "Забронировать" сначала
+     * казалось, что карусель виртуализирована и далёкие карточки просто не рендерятся в DOM - но
+     * живая проверка это опровергла: на свободной небло­кированной станции ВСЕ 4 карточки объёма
+     * (включая "Забронировать") присутствуют в DOM сразу, без единого свайпа. Настоящая причина
+     * отсутствия карточки "Забронировать" - аккаунт в кулдауне после предыдущей брони/очереди (см.
+     * {@code BookingUnblockHelper.attemptReserveClick}, которая теперь явно проверяет и обрабатывает
+     * этот случай ДО вызова этого метода). Свайп-поиск ниже - защитный запасной вариант на случай
+     * действительно медленного рендера карточки, а не основной механизм для этого сценария.
      */
     public void selectByTestId(String testId) {
         By locator = By.cssSelector("[data-testid='" + testId + "']");
-        wait.until(org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated(locator));
-        WebElement card = driver.findElement(locator);
-        swipeUntilActiveThenClick(card);
+        List<WebElement> existing = driver.findElements(locator);
+        if (!existing.isEmpty()) {
+            swipeUntilActiveThenClick(existing.get(0));
+            return;
+        }
+
+        String prefix = testId.startsWith("payment-method") ? "payment-method-" : "charge-volume-card-";
+        WebElement anyCardOfSameCarousel = wait.until(
+                ExpectedConditions.presenceOfElementLocated(By.cssSelector("[data-testid^='" + prefix + "']")));
+        WebElement container = anyCardOfSameCarousel.findElement(By.xpath("../.."));
+
+        // ИНЦИДЕНТ 2026-08-18: 12 попыток (тот же лимит, что и для активации УЖЕ отрисованной
+        // карточки) оказалось недостаточно для ОБНАРУЖЕНИЯ дальней карточки в DOM - похоже, каждый
+        // "логический" переход между соседними карточками сам иногда требует нескольких повторов
+        // жеста, а тут нужно проехать несколько карточек подряд ("Полный бак" -> ... -> "Забронировать").
+        // Увеличено с запасом.
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        int maxDiscoveryAttempts = 40;
+        int attempts = 0;
+        List<WebElement> found = driver.findElements(locator);
+        while (found.isEmpty() && attempts < maxDiscoveryAttempts) {
+            swipeOnce(js, container);
+            sleep(1300);
+            found = driver.findElements(locator);
+            attempts++;
+        }
+        if (found.isEmpty()) {
+            throw new IllegalStateException("Карточка '" + testId + "' так и не появилась в DOM после "
+                    + maxDiscoveryAttempts + " попыток свайпа карусели вслепую.");
+        }
+        swipeUntilActiveThenClick(found.get(0));
     }
 
     /**
@@ -87,6 +123,12 @@ public class VolumePaymentCarouselComponent {
      * "Начните зарядку"/поиске кнопки "Далее" уже в неправильном контексте. Теперь: попыток
      * больше, и если карточка ВСЁ РАВНО не активна после финального клика - бросаем понятную
      * ошибку сразу, а не продолжаем с неверно выбранной карточкой.
+     * <p>
+     * ИНЦИДЕНТ 2026-08-18: 12 попыток снова оказалось недостаточно - карусель после разблокирующей
+     * зарядки открылась не с дефолтного "Полный бак", а с "Зарядить на 80%", и расстояние до
+     * "Забронировать" оказалось больше обычного (застряла на scaleY(0.4) после всех 12 попыток).
+     * Расстояние до целевой карточки зависит от того, с какой карточки старт, поэтому лимит должен
+     * быть таким же щедрым, как и в свайпе-поиске карточки в {@link #selectByTestId}.
      */
     private void swipeUntilActiveThenClick(WebElement targetElement) {
         JavascriptExecutor js = (JavascriptExecutor) driver;
@@ -100,26 +142,14 @@ public class VolumePaymentCarouselComponent {
             return;
         }
 
-        int maxAttempts = 12;
+        int maxAttempts = 40;
         int attempts = 0;
         while (attempts < maxAttempts) {
             style = cardContainer.getAttribute("style");
             if (style != null && style.contains("scaleY(1)")) {
                 break;
             }
-            js.executeScript(
-                    "var el = arguments[0];"
-                            + "var rect = el.getBoundingClientRect();"
-                            + "var startX = rect.left + (rect.width * 0.6);"
-                            + "var endX = rect.left + (rect.width * 0.53);"
-                            + "var centerY = rect.top + (rect.height / 2);"
-                            + "var tStart = new Touch({ identifier: Date.now(), target: el, clientX: startX, clientY: centerY });"
-                            + "el.dispatchEvent(new TouchEvent('touchstart', { touches: [tStart], targetTouches: [tStart], changedTouches: [tStart], bubbles: true, cancelable: true }));"
-                            + "var tMove = new Touch({ identifier: Date.now(), target: el, clientX: endX, clientY: centerY });"
-                            + "el.dispatchEvent(new TouchEvent('touchmove', { touches: [tMove], targetTouches: [tMove], changedTouches: [tMove], bubbles: true, cancelable: true }));"
-                            + "el.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [tMove], bubbles: true, cancelable: true }));",
-                    container
-            );
+            swipeOnce(js, container);
             sleep(1300);
             attempts++;
         }
@@ -132,6 +162,36 @@ public class VolumePaymentCarouselComponent {
         }
         js.executeScript("arguments[0].click();", targetElement);
         sleep(500);
+    }
+
+    /**
+     * Один эмулированный touch-свайп контейнера карусели справа налево (следующая карточка).
+     * <p>
+     * ИНЦИДЕНТ 2026-08-18: свайп на 7% ширины контейнера (0.6 -> 0.53) иногда НЕ засчитывался
+     * сайтом как настоящий свайп - карточка "Забронировать" застревала на scaleY(0.4) даже после
+     * 40 попыток подряд. Похоже, у карусели есть порог по дистанции/скорости, ниже которого жест
+     * игнорируется, а синтетические touch-события выполняются мгновенно (без естественной паузы
+     * между touchstart/touchmove человека), из-за чего короткий жест не всегда проходит порог.
+     * Увеличена дистанция до 80% ширины и добавлена промежуточная точка touchmove, чтобы жест
+     * увереннее засчитывался как свайп с первого-второго раза, а не полагаться на количество попыток.
+     */
+    private void swipeOnce(JavascriptExecutor js, WebElement container) {
+        js.executeScript(
+                "var el = arguments[0];"
+                        + "var rect = el.getBoundingClientRect();"
+                        + "var startX = rect.left + (rect.width * 0.9);"
+                        + "var midX = rect.left + (rect.width * 0.5);"
+                        + "var endX = rect.left + (rect.width * 0.1);"
+                        + "var centerY = rect.top + (rect.height / 2);"
+                        + "var tStart = new Touch({ identifier: Date.now(), target: el, clientX: startX, clientY: centerY });"
+                        + "el.dispatchEvent(new TouchEvent('touchstart', { touches: [tStart], targetTouches: [tStart], changedTouches: [tStart], bubbles: true, cancelable: true }));"
+                        + "var tMid = new Touch({ identifier: Date.now(), target: el, clientX: midX, clientY: centerY });"
+                        + "el.dispatchEvent(new TouchEvent('touchmove', { touches: [tMid], targetTouches: [tMid], changedTouches: [tMid], bubbles: true, cancelable: true }));"
+                        + "var tMove = new Touch({ identifier: Date.now(), target: el, clientX: endX, clientY: centerY });"
+                        + "el.dispatchEvent(new TouchEvent('touchmove', { touches: [tMove], targetTouches: [tMove], changedTouches: [tMove], bubbles: true, cancelable: true }));"
+                        + "el.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [tMove], bubbles: true, cancelable: true }));",
+                container
+        );
     }
 
     private void sleep(long millis) {
