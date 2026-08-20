@@ -46,6 +46,8 @@ jobs:
           cache: maven
 
       - name: Run tests
+        env:
+          LERAKAB5_PASSWORD: ${{ secrets.LERAKAB5_PASSWORD }}
         run: |
           case "${{ inputs.suite }}" in
             all)

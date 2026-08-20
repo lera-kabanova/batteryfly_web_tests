@@ -1,6 +1,8 @@
-package org.example.charging;
+package org.example.charging.booking;
 
 import org.example.auth.AuthTestConfig;
+import org.example.charging.ChargingTestBase;
+import org.example.charging.ChargingTestConfig;
 import org.example.charging.pages.BookingActionSheet;
 import org.example.charging.pages.BookingConfirmationPage;
 import org.example.charging.pages.StationConnectorWizardPage;

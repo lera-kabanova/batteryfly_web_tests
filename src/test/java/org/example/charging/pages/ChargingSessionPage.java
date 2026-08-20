@@ -3,6 +3,7 @@ package org.example.charging.pages;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.StaleElementReferenceException;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -109,9 +110,59 @@ public class ChargingSessionPage {
                 + "Сессия могла остаться активной, проверьте вручную!");
     }
 
+    /**
+     * Для режима "Фиксированная сумма" ({@code selectCustomKwh}) — в отличие от "Полный бак"/"80%",
+     * такая сессия останавливается САМА по достижении заданного объёма, ручной клик "Остановить"
+     * не нужен (подтверждено вручную пользователем, 2026-08-17). Опрашивает показания, как
+     * {@link #pollUntilPercentReached}, но выходит не по достижении процента, а когда кнопка
+     * "Остановить" пропадает с экрана - то есть сессия уже сама завершилась.
+     */
+    public List<ChargeReading> pollUntilSessionEnds() {
+        List<ChargeReading> samples = new ArrayList<>();
+
+        // ВАЖНО: сначала дожидаемся, что кнопка "Остановить" реально отрисовалась - иначе на самой
+        // первой итерации ниже она "отсутствует" просто потому, что страница /charge ещё не
+        // дорисовалась, а НЕ потому, что сессия уже завершилась. Без этого ожидания опрос мог
+        // вернуть пустой список показаний ДО того, как прочитал хоть один процент (инцидент
+        // 2026-08-17: IndexOutOfBoundsException в assertSessionAppearsInHistory на пустом списке).
+        try {
+            wait.until(ExpectedConditions.presenceOfElementLocated(STOP_BUTTON));
+        } catch (TimeoutException e) {
+            throw new IllegalStateException(
+                    "Кнопка \"Остановить\" так и не появилась на экране зарядки - опрос не начат.", e);
+        }
+
+        long deadline = System.currentTimeMillis() + Duration.ofMinutes(20).toMillis();
+        Integer lastPercent = null;
+        while (System.currentTimeMillis() < deadline) {
+            if (driver.findElements(STOP_BUTTON).isEmpty()) {
+                return samples;
+            }
+            try {
+                Integer percent = readPercent();
+                if (percent != null && !percent.equals(lastPercent)) {
+                    lastPercent = percent;
+                    samples.add(new ChargeReading(percent, readKwh(), readKw(), readByn()));
+                }
+            } catch (StaleElementReferenceException e) {
+                // Элемент перерисовался между findElement() и getText() - страница активно
+                // обновляется во время зарядки, это ожидаемо. Просто повторяем опрос.
+            }
+            sleep(500);
+        }
+        throw new IllegalStateException("Зарядка 'Фиксированная сумма' не завершилась сама за 20 минут "
+                + "ожидания. Сессия могла остаться активной, проверьте вручную!");
+    }
+
     private Integer readPercent() {
         for (WebElement el : driver.findElements(PERCENT_TEXTS)) {
-            String text = el.getText().trim();
+            String text = el.getText();
+            // getText() изредка возвращает null (не пустую строку) в момент React-перерисовки -
+            // тот же класс гонки, что и StaleElementReferenceException в вызывающих методах.
+            if (text == null) {
+                continue;
+            }
+            text = text.trim();
             if (text.matches("\\d+\\s*%")) {
                 return Integer.parseInt(text.replaceAll("[^0-9]", ""));
             }
@@ -137,7 +188,13 @@ public class ChargingSessionPage {
      * склеивал их в "140" и ломал проверку монотонности). Берём только часть ДО "/".
      */
     private double readNumeric(By locator) {
-        String text = driver.findElement(locator).getText().trim().replace(",", ".");
+        String text = driver.findElement(locator).getText();
+        // Тот же класс гонки, что и в readPercent() - getText() изредка возвращает null во время
+        // React-перерисовки, а не пустую строку.
+        if (text == null) {
+            throw new StaleElementReferenceException("getText() вернул null для " + locator + " - элемент перерисовывается.");
+        }
+        text = text.trim().replace(",", ".");
         String delivered = text.split("/")[0];
         return Double.parseDouble(delivered.replaceAll("[^0-9.]", ""));
     }
@@ -184,8 +241,37 @@ public class ChargingSessionPage {
      * не дожидаясь финализации. Вызывать только после {@link #waitForFinalText()}.
      */
     public void clickKrutoToFinish() {
-        WebElement kruto = wait.until(ExpectedConditions.elementToBeClickable(KRUTO_BUTTON));
-        jsClick(kruto);
+        // Как и clickStop()/stopAndConfirm() - обычного короткого wait иногда не хватает под
+        // нагрузкой (см. QueueTest, где одновременно работают два реальных браузера): backend
+        // может отвечать медленнее, чем в одиночных тестах.
+        // ВАЖНО (инцидент 2026-08-17): в QueueTest этого 400-секундного ожидания оказалось
+        // НЕДОСТАТОЧНО - таймаут повторился и на полных 400с. Это значит, что дело не в скорости
+        // бэкенда, а в том, что кнопка "Круто" в сценарии с параллельной очередью, возможно,
+        // вообще не появляется в ожидаемом виде. Поэтому при таймауте дампим скриншот и текст
+        // страницы, чтобы увидеть, что реально на экране, а не гадать вслепую.
+        WebDriverWait longWait = new WebDriverWait(driver, Duration.ofSeconds(400));
+        try {
+            WebElement kruto = longWait.until(ExpectedConditions.elementToBeClickable(KRUTO_BUTTON));
+            jsClick(kruto);
+        } catch (TimeoutException e) {
+            dumpDiagnostics("kruto-button-not-clickable");
+            throw e;
+        }
+    }
+
+    private void dumpDiagnostics(String name) {
+        try {
+            java.nio.file.Files.createDirectories(java.nio.file.Paths.get("target", "screenshots"));
+            java.io.File src = ((org.openqa.selenium.TakesScreenshot) driver)
+                    .getScreenshotAs(org.openqa.selenium.OutputType.FILE);
+            java.nio.file.Files.copy(src.toPath(), java.nio.file.Paths.get("target", "screenshots", name + ".png"),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            String body = driver.findElement(By.tagName("body")).getText();
+            java.nio.file.Files.writeString(java.nio.file.Paths.get("target", name + "-body.txt"),
+                    "URL: " + driver.getCurrentUrl() + "\n\n" + body, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception diagError) {
+            System.out.println("[WARN] Не удалось сохранить диагностику '" + name + "': " + diagError);
+        }
     }
 
     private void jsClick(WebElement element) {

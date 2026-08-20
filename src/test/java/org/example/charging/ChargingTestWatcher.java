@@ -5,10 +5,6 @@ import org.junit.jupiter.api.extension.TestWatcher;
 
 import java.util.Optional;
 
-/**
- * Пишет в консоль результат каждого теста модуля Charging: PASS/FAIL/DISABLED/ABORTED.
- * Дублирует аналогичные watcher'ы других модулей намеренно — тривиальный boilerplate.
- */
 public class ChargingTestWatcher implements TestWatcher {
 
     @Override

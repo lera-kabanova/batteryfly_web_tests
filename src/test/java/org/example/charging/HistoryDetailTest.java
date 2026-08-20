@@ -26,15 +26,6 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * История зарядок -> деталь транзакции -> график + PDF-чек (qa-discovery/test-modules.md, модуль
- * 12, History & Analytics — реализован здесь, рядом с Charging, т.к. переиспользует
- * {@link HistoryTransactionsPage} из этого пакета, а не отдельный Page Object модуля History).
- * <p>
- * ОТДЕЛЬНЫЙ от {@link ChargingTestBase} @BeforeEach — нужны специальные ChromeOptions для
- * скачивания файлов ({@code download.default_directory}, {@code plugins.always_open_pdf_externally}),
- * иначе Chrome открывает PDF во встроенном вьювере вместо реального скачивания файла на диск.
- */
 class HistoryDetailTest {
 
     private WebDriver driver;
@@ -72,8 +63,6 @@ class HistoryDetailTest {
         driver = new ChromeDriver(options);
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
-        // headless Chrome по умолчанию блокирует скачивание файлов даже с настроенным
-        // download.default_directory в prefs - нужно явно разрешить через CDP.
         Map<String, Object> downloadParams = new HashMap<>();
         downloadParams.put("behavior", "allow");
         downloadParams.put("downloadPath", downloadDir.toString());
@@ -100,14 +89,6 @@ class HistoryDetailTest {
         Assertions.assertTrue(detail.isLoaded(), "Панель 'Информация о заправке' не открылась");
         Assertions.assertTrue(detail.isChartVisible(), "График сессии (SVG) не отрендерился");
 
-        // Живой проверкой 2026-07-24 (Selenium И независимо Playwright, см.
-        // tools/playwright-codegen/explore-pdf-click-download.js) подтверждено: клик по кнопке
-        // "PDF" НЕ инициирует событие скачивания и НЕ открывает новую вкладку/URL в течение 20с
-        // ни в одном из двух движков автоматизации - реальное скачивание файла проверить
-        // автоматически не удалось (возможно, генерация PDF занимает больше времени на бэкенде,
-        // либо требует специфичного доверенного клика, недоступного через автоматизацию).
-        // Максимум, что проверяемо здесь - сам факт наличия и кликабельности кнопки; фактическое
-        // содержимое PDF-чека требует ручной проверки.
         int tabsBefore = driver.getWindowHandles().size();
         Assertions.assertDoesNotThrow(detail::clickPdfButton, "Кнопка 'PDF' должна быть кликабельна без исключений");
         Thread.sleep(3000);

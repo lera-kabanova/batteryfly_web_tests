@@ -43,6 +43,16 @@ public class ChargingConfirmationPage {
     }
 
     /**
+     * Читает значение строки экрана подтверждения по её лейблу (например "kW*h", "BYN", "Режим
+     * заправки"). Структура строки подтверждена живой проверкой 2026-08-17: лейбл лежит в своём
+     * {@code <div>}, значение — сосед этого div (span сразу после него), НЕ его child.
+     */
+    public String getSummaryRowValue(String label) {
+        By valueLocator = By.xpath("//*[text()='" + label + "']/../following-sibling::span");
+        return wait.until(ExpectedConditions.visibilityOfElementLocated(valueLocator)).getText();
+    }
+
+    /**
      * ВНИМАНИЕ: реально запускает зарядную сессию и списывает деньги с боевого баланса.
      * Использовать ТОЛЬКО в тестах, явно предназначенных для ручного запуска.
      * <p>

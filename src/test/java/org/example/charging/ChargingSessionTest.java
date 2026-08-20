@@ -17,20 +17,8 @@ import java.util.List;
 
 class ChargingSessionTest extends ChargingTestBase {
 
-    /**
-     * Ссылка на активную зарядную сессию, если она была запущена в текущем тесте. Используется
-     * ТОЛЬКО для аварийной остановки в {@link #stopChargingIfStillActive()} - см. инцидент
-     * 2026-07-16, когда упавший тест оставил реальную зарядную сессию активной (StaleElement
-     * во время опроса процента + отсутствие timeout, см. ChargingSessionPage.waitUntilPercentReached).
-     */
     private ChargingSessionPage activeSession;
 
-    /**
-     * Выполняется ПОСЛЕ каждого теста (JUnit5 запускает @AfterEach подкласса РАНЬШЕ, чем
-     * ChargingTestBase.tearDownChargingSession(), то есть аварийная остановка успевает
-     * произойти до driver.quit()). Идемпотентно: если сессия уже остановлена штатно или не
-     * запускалась вовсе - ничего не делает.
-     */
     @AfterEach
     void stopChargingIfStillActive() {
         if (activeSession != null) {
@@ -39,38 +27,41 @@ class ChargingSessionTest extends ChargingTestBase {
     }
 
     @Test
-    @DisplayName("CHG-FULL-01: полный цикл — Полный бак + Мой баланс")
+    @DisplayName("CHG-FULL-01: Полный бак + Мой баланс")
     void fullCycle_fullTankWithBalance_completesAndAppearsInHistory() {
         runFullCycle(ChargingTestConfig.VOLUME_CARD_TESTID_FULL_TANK, ChargingTestConfig.PAYMENT_CARD_TESTID_BALANCE);
     }
 
     @Test
-    @DisplayName("CHG-FULL-02: полный цикл — Зарядить на 80% + Мой баланс")
+    @DisplayName("CHG-FULL-02: Зарядить на 80% + Мой баланс")
     void fullCycle_eightyPercentWithBalance_completesAndAppearsInHistory() {
         runFullCycle(ChargingTestConfig.VOLUME_CARD_TESTID_80_PERCENT, ChargingTestConfig.PAYMENT_CARD_TESTID_BALANCE);
     }
 
     @Test
-    @DisplayName("CHG-FULL-03: полный цикл — Полный бак + Карта")
+    @DisplayName("CHG-FULL-03: Полный бак + Карта")
     void fullCycle_fullTankWithCard_completesAndAppearsInHistory() {
         runFullCycle(ChargingTestConfig.VOLUME_CARD_TESTID_FULL_TANK, ChargingTestConfig.PAYMENT_CARD_TESTID_CARD);
     }
 
     @Test
-    @DisplayName("CHG-FULL-04: полный цикл — Зарядить на 80% + Карта")
+    @DisplayName("CHG-FULL-04: Зарядить на 80% + Карта")
     void fullCycle_eightyPercentWithCard_completesAndAppearsInHistory() {
         runFullCycle(ChargingTestConfig.VOLUME_CARD_TESTID_80_PERCENT, ChargingTestConfig.PAYMENT_CARD_TESTID_CARD);
     }
 
-    /**
-     * CHG-CONCURRENT-01: пока первая сессия активна, повторный заход на ту же станцию/коннектор
-     * не открывает обычный визард выбора объёма/оплаты, а предлагает "Стать в очередь" (сайт НЕ
-     * блокирует и не показывает ошибку - подтверждено живой проверкой
-     * tools/playwright-codegen/explore-stop-cancel-finalize-history-concurrent.js, 2026-07-22).
-     * В очередь сознательно не встаём (не кликаем "Далее" на этом экране) - тест только проверяет
-     * сам факт предложения встать в очередь. Первую сессию останавливаем сразу после старта, не
-     * дожидаясь целевого процента - деньги/время сессии здесь не относятся к сути теста.
-     */
+    @Test
+    @DisplayName("CHG-FULL-05: Свои условия + Мой баланс")
+    void fullCycle_customKwhWithBalance_completesAndAppearsInHistory() {
+        runCustomAmountCycle(ChargingTestConfig.PAYMENT_CARD_TESTID_BALANCE);
+    }
+
+    @Test
+    @DisplayName("CHG-FULL-06: Свои условия + Карта")
+    void fullCycle_customKwhWithCard_completesAndAppearsInHistory() {
+        runCustomAmountCycle(ChargingTestConfig.PAYMENT_CARD_TESTID_CARD);
+    }
+
     @Test
     @DisplayName("CHG-CONCURRENT-01: попытка второй зарядки, пока первая активна, предлагает встать в очередь")
     void secondSessionAttempt_whileFirstActive_offersQueue() {
@@ -78,13 +69,12 @@ class ChargingSessionTest extends ChargingTestBase {
         StationConnectorWizardPage wizard = openStationWizard();
         ChargingConfirmationPage confirmation = wizard.clickNext();
 
-        // ВАЖНО: activeSession присваивается ДО ожидания навигации - см. ChargingConfirmationPage
-        // #clickPayAndCharge() про инцидент 2026-07-22 (аварийная остановка не срабатывала,
-        // потому что activeSession оставался null, если ожидание URL падало по таймауту).
         activeSession = confirmation.clickPayAndCharge();
         activeSession.confirmChargeStarted();
         Assertions.assertTrue(driver.getCurrentUrl().contains("/charge"),
                 "Кнопка \"Оплатить и зарядить\" должна запускать переход на /charge");
+
+        activeSession.pollUntilPercentReached(2);
 
         openStationWizard();
         String bodyText = driver.findElement(By.tagName("body")).getText();
@@ -99,13 +89,6 @@ class ChargingSessionTest extends ChargingTestBase {
         activeSession.clickKrutoToFinish();
     }
 
-    /**
-     * Общий сценарий для всех CHG-FULL-*: выбор объёма и способа оплаты по data-testid (обе
-     * карусели на одном экране, см. {@link StationConnectorWizardPage}) → "Далее" → "Оплатить и
-     * зарядить" (реальные деньги) → рост % с попутным сбором показаний kW*h/kW/BYN →
-     * confirm-диалог остановки (текст + отмена) → реальная остановка → финализация → "Круто" →
-     * проверка записи в /history → Транзакции.
-     */
     private void runFullCycle(String volumeCardTestId, String paymentCardTestId) {
         loginAsValidUser();
         StationConnectorWizardPage wizard = openStationWizard();
@@ -113,9 +96,6 @@ class ChargingSessionTest extends ChargingTestBase {
         wizard.carousel().selectByTestId(paymentCardTestId);
         ChargingConfirmationPage confirmation = wizard.clickNext();
 
-        // ВАЖНО: activeSession присваивается ДО ожидания навигации - см. ChargingConfirmationPage
-        // #clickPayAndCharge() про инцидент 2026-07-22 (аварийная остановка не срабатывала,
-        // потому что activeSession оставался null, если ожидание URL падало по таймауту).
         activeSession = confirmation.clickPayAndCharge();
         activeSession.confirmChargeStarted();
         Assertions.assertTrue(driver.getCurrentUrl().contains("/charge"),
@@ -125,14 +105,12 @@ class ChargingSessionTest extends ChargingTestBase {
         assertPercentGrowsMonotonically(readings);
         assertCountersConsistentWithPercent(readings);
 
-        // Confirm-диалог остановки: точный текст + отмена не должна останавливать зарядку.
         activeSession.clickStop();
         Assertions.assertEquals("Желаете остановить заправку?", activeSession.readStopDialogText());
         activeSession.cancelStop();
         Assertions.assertTrue(activeSession.isActive(),
                 "После отмены в confirm-диалоге зарядка должна продолжаться");
 
-        // Реальная остановка → финализация → "Круто".
         activeSession.stopAndConfirm();
         Assertions.assertTrue(activeSession.waitForFinalText(),
                 "Не дождались текста 'Завершена в HH:MM' после остановки зарядки");
@@ -143,16 +121,47 @@ class ChargingSessionTest extends ChargingTestBase {
         assertSessionAppearsInHistory(readings);
     }
 
-    /**
-     * Запись сессии в /history → Транзакции: сверяем станцию и то, что итоговые показания не
-     * меньше последнего снятого во время опроса значения (между последним опросом и реальным
-     * кликом "Остановить" могло набежать ещё немного энергии/суммы).
-     */
+    private void runCustomAmountCycle(String paymentCardTestId) {
+        loginAsValidUser();
+        StationConnectorWizardPage wizard = openStationWizard();
+        wizard.carousel().selectCustomKwh(ChargingTestConfig.CUSTOM_KWH_AMOUNT);
+        wizard.carousel().selectByTestId(paymentCardTestId);
+        ChargingConfirmationPage confirmation = wizard.clickNext();
+
+        Assertions.assertEquals(ChargingTestConfig.CUSTOM_KWH_AMOUNT, confirmation.getSummaryRowValue("kW*h"),
+                "Пречек должен показывать ровно введённый объём kWh");
+        Assertions.assertFalse(confirmation.getSummaryRowValue("BYN").isBlank(),
+                "Пречек должен показывать пересчитанную сумму BYN");
+
+        activeSession = confirmation.clickPayAndCharge();
+        activeSession.confirmChargeStarted();
+        Assertions.assertTrue(driver.getCurrentUrl().contains("/charge"),
+                "Кнопка \"Оплатить и зарядить\" должна запускать переход на /charge");
+
+        List<ChargeReading> readings = activeSession.pollUntilSessionEnds();
+        assertPercentGrowsMonotonically(readings);
+        assertCountersConsistentWithPercent(readings);
+
+        Assertions.assertTrue(activeSession.waitForFinalText(),
+                "Не дождались текста 'Завершена в HH:MM' после автоматической остановки зарядки");
+        activeSession.clickKrutoToFinish();
+        Assertions.assertFalse(driver.getCurrentUrl().contains("/charge"),
+                "\"Круто\" должен закрывать финальный экран и уводить с /charge");
+
+        assertSessionAppearsInHistory(readings);
+    }
+
+
     private void assertSessionAppearsInHistory(List<ChargeReading> readings) {
         HistoryTransactionsPage history = new HistoryTransactionsPage(driver, wait).open(AuthTestConfig.BASE_URL);
         TransactionRecord record = history.latestRecordForStation(ChargingTestConfig.STATION_ID);
-        ChargeReading lastReading = readings.get(readings.size() - 1);
 
+        if (readings.isEmpty()) {
+            Assertions.assertTrue(record.durationMinutes() >= 0, "Длительность сессии не может быть отрицательной");
+            return;
+        }
+
+        ChargeReading lastReading = readings.get(readings.size() - 1);
         Assertions.assertTrue(record.kWh() >= lastReading.kWh(),
                 "kW*h в истории (" + record.kWh() + ") не может быть меньше последнего показания во время зарядки ("
                         + lastReading.kWh() + ")");
@@ -162,7 +171,6 @@ class ChargingSessionTest extends ChargingTestBase {
         Assertions.assertTrue(record.durationMinutes() >= 0, "Длительность сессии не может быть отрицательной");
     }
 
-    /** Процент не должен падать между двумя последовательными НОВЫМИ показаниями. */
     private void assertPercentGrowsMonotonically(List<ChargeReading> readings) {
         for (int i = 1; i < readings.size(); i++) {
             int previous = readings.get(i - 1).percent();
@@ -173,11 +181,6 @@ class ChargingSessionTest extends ChargingTestBase {
         }
     }
 
-    /**
-     * kW*h и BYN — накопительные счётчики (переданная энергия и списанная сумма), поэтому не
-     * должны уменьшаться при росте процента. kW — это мгновенная мощность, у неё нормально
-     * колебаться (зарядная кривая), поэтому для неё проверяется только неотрицательность.
-     */
     private void assertCountersConsistentWithPercent(List<ChargeReading> readings) {
         for (int i = 1; i < readings.size(); i++) {
             ChargeReading previous = readings.get(i - 1);

@@ -19,12 +19,6 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Общая база для тестов модуля Charging — qa-discovery/test-modules.md, модуль 8.
- * Явно зависит от Authentication (переиспользует {@code org.example.auth.pages.LoginPage})
- * и от минимального Station/Connector Page Object, реализованного внутри этого же пакета
- * (полноценный модуль Station Detail & Connector Selection не реализован — вне рамок задачи).
- */
 public abstract class ChargingTestBase {
 
     protected WebDriver driver;
@@ -47,9 +41,6 @@ public abstract class ChargingTestBase {
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--incognito");
-        // Карусель зависит от geometry контейнера (getBoundingClientRect в touch-свайпе) -
-        // без фиксированного размера окна ChromeDriver стартует с маленьким дефолтным viewport,
-        // что могло быть причиной несработавшего свайпа при выборе "Зарядить на 80%" (2026-07-16).
         options.addArguments("--window-size=1280,900");
 
         options.addArguments("--lang=ru-RU");
@@ -68,7 +59,7 @@ public abstract class ChargingTestBase {
         }
     }
 
-    /** Логинится валидными кредами общего read-only тестового аккаунта, ждёт подтверждения входа. */
+    // пользователь 1227509@gmail.com - для зарядных сессий
     protected AuthenticatedAreaPage loginAsValidUser() {
         return loginAs(AuthTestConfig.VALID_EMAIL, AuthTestConfig.VALID_PASSWORD);
     }
@@ -77,14 +68,11 @@ public abstract class ChargingTestBase {
         return loginAs(AuthTestConfig.EMAIL_NULL_BALANCE, AuthTestConfig.VALID_PASSWORD);
     }
 
-    /**
-     * Логинится вторым реальным аккаунтом ({@code cinemawebwelcome@gmail.com}) — используется для
-     * multi-user/booking сценариев, где нужен положительный баланс (в отличие от VALID_EMAIL,
-     * у которого баланс 0 BYN на 2026-07-24 после серии платных CHG-FULL-* прогонов).
-     */
+    // cinemawebwelcome@gmail.com - должен быть положительный баланс
     protected AuthenticatedAreaPage loginAsSecondUser() {
         return loginAs(AuthTestConfig.USER_EMAIL_CINEMA, AuthTestConfig.SECOND_USER_PASSWORD);
     }
+
 
     private AuthenticatedAreaPage loginAs(String email, String password) {
         LoginPage loginPage = new LoginPage(driver, wait).open(AuthTestConfig.BASE_URL);
@@ -95,7 +83,6 @@ public abstract class ChargingTestBase {
         return authenticatedArea;
     }
 
-    /** Открывает станцию-эмулятор #49 и выбирает коннектор CCS2 — ещё БЕЗ трат денег. */
     protected StationConnectorWizardPage openStationWizard() {
         StationConnectorWizardPage wizard = new StationConnectorWizardPage(driver, wait)
                 .openStation(AuthTestConfig.BASE_URL, ChargingTestConfig.STATION_DEEP_LINK_PATH);
@@ -103,11 +90,6 @@ public abstract class ChargingTestBase {
         return wizard;
     }
 
-    /**
-     * Делает booking-тесты независимыми от порядка запуска и друг от друга — см.
-     * {@link BookingUnblockHelper}. Вызывать ПЕРЕД тем, как тест делает свою реальную бронь, уже
-     * залогинившись нужным аккаунтом.
-     */
     protected void ensureAccountCanBook() {
         BookingUnblockHelper.ensureAccountCanBook(driver, wait);
     }

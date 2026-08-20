@@ -23,6 +23,16 @@ public class BookingActionSheet {
     private static final By BANNER = By.xpath("//*[contains(text(),'Забронировано')]");
     private static final Pattern COUNTDOWN_PATTERN = Pattern.compile("(\\d{1,2}):(\\d{2})");
 
+    /**
+     * Плашка позиции в очереди ("В очереди N машина/машины") — ОТДЕЛЬНОЕ состояние от {@link #BANNER}
+     * ("Забронировано"), с другим текстом. Подтверждено живой проверкой 2026-08-18
+     * (QueueBannerDiagnosticTest, аккаунт cinemawebwelcome, станция #49): пока пользователь ждёт в
+     * очереди (ещё не продвинулся), на главном экране показывается именно "В очереди N машина", а
+     * не "Забронировано" — плашка переходит в "Забронировано" только ПОСЛЕ продвижения по очереди.
+     */
+    private static final By QUEUE_BANNER = By.xpath("//*[contains(text(),'В очереди')]");
+    private static final Pattern QUEUE_POSITION_PATTERN = Pattern.compile("В очереди\\s+(\\d+)");
+
     private final WebDriver driver;
     private final WebDriverWait wait;
 
@@ -45,6 +55,27 @@ public class BookingActionSheet {
         return this;
     }
 
+    public boolean isQueueBannerVisible() {
+        return !driver.findElements(QUEUE_BANNER).isEmpty();
+    }
+
+    /** Ждёт появления плашки очереди ("В очереди N машина") на главном экране. */
+    public BookingActionSheet waitForQueueBannerVisible() {
+        wait.until(ExpectedConditions.presenceOfElementLocated(QUEUE_BANNER));
+        return this;
+    }
+
+    /** Разбирает число позиции из плашки "В очереди N машина". */
+    public int readQueuePosition() {
+        String bannerAreaText = driver.findElement(QUEUE_BANNER).findElement(By.xpath("..")).getText();
+        Matcher matcher = QUEUE_POSITION_PATTERN.matcher(bannerAreaText);
+        if (!matcher.find()) {
+            throw new IllegalStateException(
+                    "Не удалось найти номер позиции в плашке очереди: " + bannerAreaText);
+        }
+        return Integer.parseInt(matcher.group(1));
+    }
+
     /** Разбирает "HH:MM" рядом с плашкой брони в общее число секунд обратного отсчёта. */
     public int readCountdownSeconds() {
         String bannerAreaText = driver.findElement(BANNER).findElement(By.xpath("..")).getText();
@@ -65,6 +96,13 @@ public class BookingActionSheet {
         return this;
     }
 
+    /** То же самое, но для плашки очереди ("В очереди N машина") - до продвижения по очереди. */
+    public BookingActionSheet expandQueueBanner() {
+        wait.until(ExpectedConditions.elementToBeClickable(QUEUE_BANNER)).click();
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//*[text()='Действие']")));
+        return this;
+    }
+
     public void clickBuildRoute() {
         clickActionByText("Проложить маршрут");
     }
@@ -74,14 +112,15 @@ public class BookingActionSheet {
     }
 
     /**
-     * ВНИМАНИЕ: реально запускает зарядную сессию по уже активной брони (аналог
-     * {@link ChargingConfirmationPage#clickPayAndCharge()}, но без экрана подтверждения — бронь
-     * уже подтверждена ранее). Существование и видимость кнопки подтверждены живой проверкой;
-     * сам переход на /charge — НЕТ, проверить перед первым реальным запуском (сценарий 15).
+     * ИНЦИДЕНТ 2026-08-18: живой проверкой подтверждено, что "Начать заправку" НЕ пропускает визард
+     * и НЕ ведёт сразу на /charge (как предполагалось раньше) - переводит на ТОТ ЖЕ экран выбора
+     * объёма/оплаты ("Полный бак" / "Мой баланс" / "Далее"), что и обычный вход через
+     * {@code StationConnectorWizardPage.openStation()}. Бронь просто даёт право начать зарядку на
+     * занятой станции, но условия (объём, оплата) всё равно нужно выбрать заново через визард.
      */
-    public ChargingSessionPage clickStartCharging() {
+    public StationConnectorWizardPage clickStartCharging() {
         clickActionByText("Начать заправку");
-        return new ChargingSessionPage(driver, wait);
+        return new StationConnectorWizardPage(driver, wait);
     }
 
     /** Открывает подтверждение отмены брони (то же меню, второе состояние). */
@@ -96,9 +135,15 @@ public class BookingActionSheet {
         return driver.findElement(By.tagName("body")).getText();
     }
 
-    /** "Отменить бронирование" — подтверждает отмену, освобождает станцию/коннектор. */
+    /**
+     * "Отменить бронирование" — подтверждает отмену, освобождает станцию/коннектор. Ждёт, пока
+     * плашка реально не исчезнет с главного экрана - клик по кнопке сам по себе не гарантирует,
+     * что отмена применилась (без этого ожидания вызывающий код мог посчитать бронь отменённой,
+     * хотя она оставалась активной - плашка это единственный надёжный признак фактической отмены).
+     */
     public void confirmCancel() {
         clickActionByText("Отменить бронирование");
+        wait.until(d -> d.findElements(BANNER).isEmpty() && d.findElements(QUEUE_BANNER).isEmpty());
     }
 
     /** "Сохранить бронь" — закрывает диалог без отмены, бронь остаётся активной. */
