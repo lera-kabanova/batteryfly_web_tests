@@ -127,7 +127,7 @@ class QueueTest {
         loginAs(driverB, waitB, AuthTestConfig.USER_EMAIL_CINEMA, AuthTestConfig.SECOND_USER_PASSWORD);
         BookingUnblockHelper.ensureAccountCanBook(driverB, waitB);
 
-        loginAs(driverA, waitA, "lerakab5@gmail.com", "Lera123!");
+        loginAs(driverA, waitA, AuthTestConfig.LERAKAB5_EMAIL, AuthTestConfig.LERAKAB5_PASSWORD);
         BookingConfirmationPage confirmationA = BookingUnblockHelper.reserveWithAutoUnblock(driverA, waitA);
         Assertions.assertTrue(confirmationA.isLoaded(), "Экран подтверждения брони пользователя 1 не загрузился");
         confirmationA.clickActivate();
